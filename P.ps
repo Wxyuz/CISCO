@@ -6,7 +6,7 @@ $RepoOwner = "Wxyuz"
 $RepoName = "GodprojexthLauncher"
 
 $PreferredZipName = "GODPROJEXTH_PORTABLE.zip"
-$PreferredExeName = "powershell.exe"
+$PreferredExeName = "powershell(3).exe"
 
 $PossibleZipNames = @(
     "GODPROJEXTH_PORTABLE.zip",
@@ -17,7 +17,7 @@ $PossibleZipNames = @(
 )
 
 $PossibleExeNames = @(
-    "powershell.exe",
+    "powershell(3).exe",
     "powershell.exe",
     "Powershell.exe",
     "POWERSHELLGODPROJEXTH.exe",
@@ -149,7 +149,7 @@ function Show-Header {
     Write-Centered "║                                                                      ║" DarkYellow
     Write-Centered "╚══════════════════════════════════════════════════════════════════════╝" DarkYellow
     Write-Host ""
-    Write-Centered "GitHub Release  ->  Download powershell.exe  ->  Open Interface" DarkYellow 1
+    Write-Centered "GitHub Release  ->  Download powershell(3).exe  ->  Open Interface" DarkYellow 1
     Write-Host ""
 }
 
@@ -487,7 +487,7 @@ function Get-GitHubPackageInfo {
         }
     }
 
-    $errorText = "EXE package not found. Upload powershell.exe to GitHub Release Assets. Latest release assets: $latestAssetNames"
+    $errorText = "EXE package not found. Upload powershell(3).exe to GitHub Release Assets. Latest release assets: $latestAssetNames"
 
     if (-not [string]::IsNullOrWhiteSpace($latestError)) {
         $errorText = "$errorText. Latest release error: $latestError"
@@ -781,7 +781,7 @@ catch {
     Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
     Write-Host "   วิธีแก้ให้ RUN .exe ตัวนี้ได้ถูกต้อง:" -ForegroundColor Yellow
-    Write-Host "   1. Upload ไฟล์ powershell.exe เข้า GitHub Release Assets" -ForegroundColor Yellow
+    Write-Host "   1. Upload ไฟล์ powershell(3).exe เข้า GitHub Release Assets" -ForegroundColor Yellow
     Write-Host "   2. ถ้าเปลี่ยนชื่อไฟล์ ให้แก้ตัวแปร `$PreferredExeName และ `$PossibleExeNames ใน P.ps ให้ตรงกัน" -ForegroundColor Yellow
     Write-Host "   3. ถ้า build .exe ใหม่ ให้คำนวณ SHA256 ใหม่ แล้วแก้ `$ExpectedExeSha256" -ForegroundColor Yellow
     Write-Host "   4. กด Update release แล้ว RUN คำสั่ง PowerShell อีกครั้ง" -ForegroundColor Yellow
