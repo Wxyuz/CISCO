@@ -186,11 +186,20 @@ function Write-Status {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Text,
-        [System.ConsoleColor]$Color = [System.ConsoleColor]::Green
+        [System.ConsoleColor]$Color = [System.ConsoleColor]::Green,
+        [int]$Delay = 8
     )
 
     Write-Host "   " -NoNewline
-    Write-Host "[$AppName] $Text" -ForegroundColor $Color
+    $prefix = "[$AppName] "
+    Write-Host $prefix -NoNewline -ForegroundColor $Color
+    foreach ($char in $Text.ToCharArray()) {
+        Write-Host $char -NoNewline -ForegroundColor $Color
+        if ($Delay -gt 0) {
+            Start-Sleep -Milliseconds $Delay
+        }
+    }
+    Write-Host ""
 }
 
 function Get-PixelFontMap {
@@ -392,7 +401,8 @@ function Show-PixelLogoHeader {
     Show-ScanlineRow -Pattern "▒  ▒ ▒   ▒  ▒ ▒ ▒ ▒   ▒  ▒ ▒ ▒ ▒ ▒ ▒ ▒   ▒" -Hex "#0D131A"
     Write-Host ""
 
-    $rows = Get-PixelWordRows -Word "CISCO"
+    $rows1 = Get-PixelWordRows -Word "GODPROJEXTH"
+    $rows2 = Get-PixelWordRows -Word "SHOP"
     $shadowStyle = New-AnsiStyle -ForegroundHex "#05080B" -Bold
     $rowColors = @(
         "#F3FAFF",
@@ -403,24 +413,41 @@ function Show-PixelLogoHeader {
         "#567A9F"
     )
 
-    for ($i = 0; $i -lt $rows.Count; $i++) {
-        $shadow = $shadowStyle + " " + $rows[$i] + $script:AnsiReset
+    # Line 1: GODPROJEXTH
+    for ($i = 0; $i -lt $rows1.Count; $i++) {
+        $shadow = $shadowStyle + " " + $rows1[$i] + $script:AnsiReset
         Write-AnsiCentered -Text $shadow
 
-        $mainRow = Convert-PixelRowToAnsi -Row $rows[$i] -BaseHex $rowColors[$i]
-        $prefix = ""
-        if (($i % 2) -eq 0) {
-            $prefix = (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░ " + $script:AnsiReset
-        }
-        else {
-            $prefix = (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒ " + $script:AnsiReset
+        $mainRow = Convert-PixelRowToAnsi -Row $rows1[$i] -BaseHex $rowColors[$i]
+        $prefix = if (($i % 2) -eq 0) {
+            (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░ " + $script:AnsiReset
+        } else {
+            (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒ " + $script:AnsiReset
         }
         Write-AnsiCentered -Text ($prefix + $mainRow)
+        Start-Sleep -Milliseconds 20
     }
 
     Write-Host ""
 
-    $subtitle = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + "[+] CMD CISCO BY GODPROJEXTH [+]" + $script:AnsiReset
+    # Line 2: SHOP
+    for ($i = 0; $i -lt $rows2.Count; $i++) {
+        $shadow = $shadowStyle + "   " + $rows2[$i] + $script:AnsiReset
+        Write-AnsiCentered -Text $shadow
+
+        $mainRow = Convert-PixelRowToAnsi -Row $rows2[$i] -BaseHex $rowColors[$i]
+        $prefix = if (($i % 2) -eq 0) {
+            (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░   " + $script:AnsiReset
+        } else {
+            (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒   " + $script:AnsiReset
+        }
+        Write-AnsiCentered -Text ($prefix + $mainRow)
+        Start-Sleep -Milliseconds 20
+    }
+
+    Write-Host ""
+
+    $subtitle = (New-AnsiStyle -ForegroundHex "#FFD54F" -Bold) + "[+] CMD CISCO  BY GODPROJEXTH [+]" + $script:AnsiReset
     Write-AnsiCentered -Text $subtitle
 
     $divider = (New-AnsiStyle -ForegroundHex "#607B95") + "┌──────────────────────────────────────────────────────────────────────────┐" + $script:AnsiReset
@@ -443,7 +470,7 @@ function Show-ProgressBar {
         [string]$Label,
         [int]$Start = 0,
         [int]$End = 100,
-        [int]$Delay = 6
+        [int]$Delay = 12
     )
 
     $barWidth = 52
