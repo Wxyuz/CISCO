@@ -8,7 +8,9 @@ catch {
 }
 
 # ==========================================================
-# GODPROJEXTH PIXEL ARCade RELEASE RUNNER
+# GODPROJEXTH PIXEL ARCADE RELEASE RUNNER
+# File name for GitHub root: c.ps
+# RUN: irm https://raw.githubusercontent.com/Wxyuz/CISCO/main/c.ps | iex
 # Full .ps script for GitHub Raw + GitHub Release EXE runner
 # ==========================================================
 
@@ -832,14 +834,14 @@ catch {
     Write-Host ""
     Write-Host "   วิธีตั้งค่าแบบละเอียด:" -ForegroundColor Yellow
     Write-Host "   1. สร้าง GitHub repo แบบ Public ชื่อ CISCO" -ForegroundColor Yellow
-    Write-Host "   2. สร้างไฟล์ P.ps ใน root ของ repo แล้ววางสคริปต์นี้ทั้งไฟล์" -ForegroundColor Yellow
+    Write-Host "   2. สร้างไฟล์ c.ps ใน root ของ repo แล้ววางสคริปต์นี้ทั้งไฟล์" -ForegroundColor Yellow
     Write-Host "   3. สร้าง Release ใหม่อย่างน้อย 1 ตัวใน repo นี้" -ForegroundColor Yellow
     Write-Host "   4. อัปโหลดไฟล์ .exe ของคุณไว้ใน Release Assets" -ForegroundColor Yellow
     Write-Host "   5. แนะนำให้ตั้งชื่อไฟล์เป็น POWERSHELLGODPROJEXTH.exe" -ForegroundColor Yellow
     Write-Host "   6. ถ้าไม่ใช้ Release ให้ใส่ direct download link ลงในตัวแปร `$DirectExeUrl" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   ลิงก์ RUN ที่สั้นสวย:" -ForegroundColor Yellow
-    Write-Host "   irm https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/P.ps | iex" -ForegroundColor Yellow
+    Write-Host "   irm https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/c.ps | iex" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Release page:" -ForegroundColor Yellow
     Write-Host "   https://github.com/$RepoOwner/$RepoName/releases/latest" -ForegroundColor Yellow
