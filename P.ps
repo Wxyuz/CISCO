@@ -186,20 +186,23 @@ function Write-Status {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Text,
-        [System.ConsoleColor]$Color = [System.ConsoleColor]::Green,
-        [int]$Delay = 8
+        [string]$HexColor = "#FFCA28",
+        [int]$Delay = 22
     )
 
     Write-Host "   " -NoNewline
     $prefix = "[$AppName] "
-    Write-Host $prefix -NoNewline -ForegroundColor $Color
+    Write-Host $prefix -NoNewline -ForegroundColor Yellow
+    
+    $style = New-AnsiStyle -ForegroundHex $HexColor
+    Write-Host $style -NoNewline
     foreach ($char in $Text.ToCharArray()) {
-        Write-Host $char -NoNewline -ForegroundColor $Color
+        Write-Host $char -NoNewline
         if ($Delay -gt 0) {
             Start-Sleep -Milliseconds $Delay
         }
     }
-    Write-Host ""
+    Write-Host $script:AnsiReset
 }
 
 function Get-PixelFontMap {
@@ -349,8 +352,8 @@ function Convert-PixelRowToAnsi {
         [string]$Row,
         [Parameter(Mandatory = $true)]
         [string]$BaseHex,
-        [string]$HighlightHex = "#F8FBFF",
-        [string]$ShadowHex = "#0F1720"
+        [string]$HighlightHex = "#FFFFFF",
+        [string]$ShadowHex = "#2E2200"
     )
 
     $builder = New-Object System.Text.StringBuilder
@@ -386,7 +389,7 @@ function Show-ScanlineRow {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Pattern,
-        [string]$Hex = "#1A222D"
+        [string]$Hex = "#4E3B10"
     )
 
     $styled = (New-AnsiStyle -ForegroundHex $Hex -Dim) + $Pattern + $script:AnsiReset
@@ -397,20 +400,19 @@ function Show-PixelLogoHeader {
     $bgLine = (New-AnsiStyle -BackgroundHex "#000000") + (" " * ([Math]::Max(96, (Get-ConsoleWidthSafe)))) + $script:AnsiReset
     Write-Host $bgLine
 
-    Show-ScanlineRow -Pattern "░ ░░  ░░ ░  ░░░ ░  ░░  ░░ ░ ░░  ░░░ ░  ░░░ ░" -Hex "#101820"
-    Show-ScanlineRow -Pattern "▒  ▒ ▒   ▒  ▒ ▒ ▒ ▒   ▒  ▒ ▒ ▒ ▒ ▒ ▒ ▒   ▒" -Hex "#0D131A"
+    Show-ScanlineRow -Pattern "░ ░░  ░░ ░  ░░░ ░  ░░  ░░ ░ ░░  ░░░ ░  ░░░ ░" -Hex "#332505"
+    Show-ScanlineRow -Pattern "▒  ▒ ▒   ▒  ▒ ▒ ▒ ▒   ▒  ▒ ▒ ▒ ▒ ▒ ▒ ▒   ▒" -Hex "#4E3B10"
     Write-Host ""
 
     $rows1 = Get-PixelWordRows -Word "GODPROJEXTH"
-    $rows2 = Get-PixelWordRows -Word "SHOP"
-    $shadowStyle = New-AnsiStyle -ForegroundHex "#05080B" -Bold
+    $shadowStyle = New-AnsiStyle -ForegroundHex "#2E2200" -Bold
     $rowColors = @(
-        "#F3FAFF",
-        "#DDEEFF",
-        "#B9DDFF",
-        "#7DBDFF",
-        "#699BCB",
-        "#567A9F"
+        "#FFF9C4",  # Row 0
+        "#FFF59D",  # Row 1
+        "#FFE082",  # Row 2
+        "#FFD54F",  # Row 3
+        "#FFCA28",  # Row 4
+        "#FFB300"   # Row 5
     )
 
     # Line 1: GODPROJEXTH
@@ -420,26 +422,9 @@ function Show-PixelLogoHeader {
 
         $mainRow = Convert-PixelRowToAnsi -Row $rows1[$i] -BaseHex $rowColors[$i]
         $prefix = if (($i % 2) -eq 0) {
-            (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░ " + $script:AnsiReset
+            (New-AnsiStyle -ForegroundHex "#332505" -Dim) + "░ " + $script:AnsiReset
         } else {
-            (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒ " + $script:AnsiReset
-        }
-        Write-AnsiCentered -Text ($prefix + $mainRow)
-        Start-Sleep -Milliseconds 20
-    }
-
-    Write-Host ""
-
-    # Line 2: SHOP
-    for ($i = 0; $i -lt $rows2.Count; $i++) {
-        $shadow = $shadowStyle + "   " + $rows2[$i] + $script:AnsiReset
-        Write-AnsiCentered -Text $shadow
-
-        $mainRow = Convert-PixelRowToAnsi -Row $rows2[$i] -BaseHex $rowColors[$i]
-        $prefix = if (($i % 2) -eq 0) {
-            (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░   " + $script:AnsiReset
-        } else {
-            (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒   " + $script:AnsiReset
+            (New-AnsiStyle -ForegroundHex "#4E3B10" -Dim) + "▒ " + $script:AnsiReset
         }
         Write-AnsiCentered -Text ($prefix + $mainRow)
         Start-Sleep -Milliseconds 20
@@ -450,17 +435,17 @@ function Show-PixelLogoHeader {
     $subtitle = (New-AnsiStyle -ForegroundHex "#FFD54F" -Bold) + "[+] CMD CISCO  BY GODPROJEXTH [+]" + $script:AnsiReset
     Write-AnsiCentered -Text $subtitle
 
-    $divider = (New-AnsiStyle -ForegroundHex "#607B95") + "┌──────────────────────────────────────────────────────────────────────────┐" + $script:AnsiReset
-    $subline = (New-AnsiStyle -ForegroundHex "#7B93A8") + "│     GitHub Release  →  Verify SHA256  →  Prepare Runtime  →  Open EXE    │" + $script:AnsiReset
-    $divider2 = (New-AnsiStyle -ForegroundHex "#607B95") + "└──────────────────────────────────────────────────────────────────────────┘" + $script:AnsiReset
+    $divider = (New-AnsiStyle -ForegroundHex "#B78A00") + "┌──────────────────────────────────────────────────────────────────────────┐" + $script:AnsiReset
+    $subline = (New-AnsiStyle -ForegroundHex "#FFCA28") + "│     GitHub Release  →  Verify SHA256  →  Prepare Runtime  →  Open EXE    │" + $script:AnsiReset
+    $divider2 = (New-AnsiStyle -ForegroundHex "#B78A00") + "└──────────────────────────────────────────────────────────────────────────┘" + $script:AnsiReset
 
     Write-AnsiCentered -Text $divider
     Write-AnsiCentered -Text $subline
     Write-AnsiCentered -Text $divider2
 
     Write-Host ""
-    Show-ScanlineRow -Pattern "░░ ░  ░░░ ░ ░ ░░  ░░ ░░  ░  ░░  ░ ░░  ░░ ░░  ░" -Hex "#0E151D"
-    Show-ScanlineRow -Pattern "▒ ▒▒  ▒ ▒ ▒ ▒ ▒▒  ▒  ▒▒  ▒  ▒▒  ▒ ▒▒  ▒▒ ▒▒  ▒" -Hex "#111A23"
+    Show-ScanlineRow -Pattern "░░ ░  ░░░ ░ ░ ░░  ░░ ░░  ░  ░░  ░ ░░  ░░ ░░  ░" -Hex "#332505"
+    Show-ScanlineRow -Pattern "▒ ▒▒  ▒ ▒ ▒ ▒ ▒▒  ▒  ▒▒  ▒  ▒▒  ▒ ▒▒  ▒▒ ▒▒  ▒" -Hex "#4E3B10"
     Write-Host ""
 }
 
@@ -470,21 +455,17 @@ function Show-ProgressBar {
         [string]$Label,
         [int]$Start = 0,
         [int]$End = 100,
-        [int]$Delay = 12
+        [int]$Delay = 25
     )
 
     $barWidth = 52
     $frames = @("◜", "◠", "◝", "◞", "◡", "◟")
     $stages = @("CONNECTING", "DOWNLOADING", "VERIFYING", "FINALIZING", "SUCCESSFULLY")
 
-    $labelText = (New-AnsiStyle -ForegroundHex "#CFE8FF" -Bold) + $Label + $script:AnsiReset
+    $labelText = (New-AnsiStyle -ForegroundHex "#FFE082" -Bold) + $Label + $script:AnsiReset
     Write-AnsiCentered -Text $labelText
 
-    for ($i = $Start; $i -le $End; $i += 4) {
-        if ($i -gt 100) {
-            $i = 100
-        }
-
+    for ($i = $Start; $i -le $End; $i++) {
         $filled = [Math]::Floor(($i / 100) * $barWidth)
         if ($filled -lt 0) { $filled = 0 }
         if ($filled -gt $barWidth) { $filled = $barWidth }
@@ -506,17 +487,22 @@ function Show-ProgressBar {
             $state = $stages[4]
         }
 
-        $progressPrefix = (New-AnsiStyle -ForegroundHex "#DDEEFF" -Bold) + $spin + " " + $script:AnsiReset
-        $progressLeft = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "╞" + $script:AnsiReset
-        $progressFill = (New-AnsiStyle -ForegroundHex "#94D3FF" -Bold) + ("█" * $filled) + $script:AnsiReset
-        $progressEmpty = (New-AnsiStyle -ForegroundHex "#243241") + ("▓" * $empty) + $script:AnsiReset
-        $progressRight = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "╡" + $script:AnsiReset
-        $percent = (New-AnsiStyle -ForegroundHex "#F2FAFF" -Bold) + (" {0,3}% " -f $i) + $script:AnsiReset
-        $stateText = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + $state + $script:AnsiReset
+        $progressPrefix = (New-AnsiStyle -ForegroundHex "#FFE082" -Bold) + $spin + " " + $script:AnsiReset
+        $progressLeft = (New-AnsiStyle -ForegroundHex "#B78A00") + "╞" + $script:AnsiReset
+        $progressFill = (New-AnsiStyle -ForegroundHex "#FFD54F" -Bold) + ("█" * $filled) + $script:AnsiReset
+        $progressEmpty = (New-AnsiStyle -ForegroundHex "#42351A") + ("▓" * $empty) + $script:AnsiReset
+        $progressRight = (New-AnsiStyle -ForegroundHex "#B78A00") + "╡" + $script:AnsiReset
+        $percent = (New-AnsiStyle -ForegroundHex "#FFF59D" -Bold) + (" {0,3}% " -f $i) + $script:AnsiReset
+        $stateText = (New-AnsiStyle -ForegroundHex "#FFF9C4" -Bold) + $state + $script:AnsiReset
 
         $line = $progressPrefix + $progressLeft + $progressFill + $progressEmpty + $progressRight + $percent + $stateText
+        
+        $plain = Strip-Ansi -Text $line
+        $width = Get-ConsoleWidthSafe
+        $left = [Math]::Max(0, [Math]::Floor(($width - $plain.Length) / 2))
+
         Write-Host "`r" -NoNewline
-        Write-AnsiCentered -Text $line
+        Write-Host ((" " * $left) + $line) -NoNewline
 
         if ($Delay -gt 0) {
             Start-Sleep -Milliseconds $Delay
@@ -528,8 +514,8 @@ function Show-ProgressBar {
 }
 
 function Show-Successfully {
-    $success = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + "SUCCESSFULLY" + $script:AnsiReset
-    $info = (New-AnsiStyle -ForegroundHex "#D6F7E2") + "Executable launched successfully." + $script:AnsiReset
+    $success = (New-AnsiStyle -ForegroundHex "#FFF9C4" -Bold) + "SUCCESSFULLY" + $script:AnsiReset
+    $info = (New-AnsiStyle -ForegroundHex "#FFE082") + "Executable launched successfully." + $script:AnsiReset
     Write-AnsiCentered -Text $success
     Write-AnsiCentered -Text $info
     Write-Host ""
@@ -588,8 +574,8 @@ function Assert-ExeHash {
     $actual = Get-Sha256Safe -Path $ExePath
     $expected = $ExpectedExeSha256.ToUpperInvariant()
 
-    Write-Status "Expected SHA256: $expected" DarkYellow
-    Write-Status "Actual SHA256:   $actual" DarkYellow
+    Write-Status "Expected SHA256: $expected"
+    Write-Status "Actual SHA256:   $actual"
 
     if ($actual -ne $expected) {
         throw "EXE SHA256 mismatch. The downloaded file does not match the EXE you provided."
@@ -720,7 +706,7 @@ function Get-DownloadInfo {
         }
     }
 
-    Write-Status "Connecting to the latest GitHub release..." Green
+    Write-Status "Connecting to the latest GitHub release..."
     $release = Get-LatestRelease
     $assets = @()
 
@@ -756,7 +742,7 @@ function Save-ExeFromUrl {
             if (-not [string]::IsNullOrWhiteSpace($ExpectedExeSha256)) {
                 $actualHash = Get-Sha256Safe -Path $OutputPath
                 if ($actualHash -eq $ExpectedExeSha256.ToUpperInvariant()) {
-                    Write-Status "Local package is up to date. Skipping download." Green
+                    Write-Status "Local package is up to date. Skipping download." Yellow
                     return $OutputPath
                 }
             }
@@ -839,11 +825,11 @@ function Open-Executable {
         throw "Target file is not a valid Windows EXE: $ExecutablePath"
     }
 
-    Write-Status "Preparing clean runtime temp..." Green
+    Write-Status "Preparing clean runtime temp..."
     Prepare-RuntimeTemp
 
-    Write-Status "Opening executable..." Green
-    Show-ProgressBar -Label "Opening CISCO Interface" -Start 83 -End 100 -Delay 5
+    Write-Status "Opening executable..."
+    Show-ProgressBar -Label "Opening CISCO Interface" -Start 83 -End 100 -Delay 25
     Show-Successfully
 
     $oldTemp = $env:TEMP
@@ -876,13 +862,13 @@ try {
     Show-PixelLogoHeader
     Ensure-InstallDir
 
-    Show-ProgressBar -Label "Connecting To CISCO Release Server" -Start 1 -End 22 -Delay 5
+    Show-ProgressBar -Label "Connecting To CISCO Release Server" -Start 1 -End 22 -Delay 25
     $downloadInfo = Get-DownloadInfo
 
-    Write-Status "Source: $($downloadInfo.Source)" Cyan
-    Write-Status "Asset:  $($downloadInfo.Name)" Cyan
+    Write-Status "Source: $($downloadInfo.Source)" Yellow
+    Write-Status "Asset:  $($downloadInfo.Name)" Yellow
 
-    Show-ProgressBar -Label "Downloading And Verifying EXE" -Start 23 -End 82 -Delay 5
+    Show-ProgressBar -Label "Downloading And Verifying EXE" -Start 23 -End 82 -Delay 25
     $executable = Save-ExeFromUrl -Url $downloadInfo.Url -OutputPath $ExeInstallPath -TempPath $ExeTempDownloadPath -RemoteSize $downloadInfo.Size
 
     Open-Executable -ExecutablePath $executable
