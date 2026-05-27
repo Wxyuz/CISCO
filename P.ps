@@ -133,7 +133,7 @@ function New-AnsiStyle {
 
     if (-not [string]::IsNullOrWhiteSpace($ForegroundHex)) {
         $clean = $ForegroundHex.TrimStart('#')
-        if ($clean.Length -eq 6) {
+        if ($clean -match '^[0-9a-fA-F]{6}$') {
             $r = [Convert]::ToInt32($clean.Substring(0, 2), 16)
             $g = [Convert]::ToInt32($clean.Substring(2, 2), 16)
             $b = [Convert]::ToInt32($clean.Substring(4, 2), 16)
@@ -143,7 +143,7 @@ function New-AnsiStyle {
 
     if (-not [string]::IsNullOrWhiteSpace($BackgroundHex)) {
         $clean = $BackgroundHex.TrimStart('#')
-        if ($clean.Length -eq 6) {
+        if ($clean -match '^[0-9a-fA-F]{6}$') {
             $r = [Convert]::ToInt32($clean.Substring(0, 2), 16)
             $g = [Convert]::ToInt32($clean.Substring(2, 2), 16)
             $b = [Convert]::ToInt32($clean.Substring(4, 2), 16)
@@ -865,8 +865,8 @@ try {
     Show-ProgressBar -Label "Connecting To CISCO Release Server" -Start 1 -End 22 -Delay 25
     $downloadInfo = Get-DownloadInfo
 
-    Write-Status "Source: $($downloadInfo.Source)" Yellow
-    Write-Status "Asset:  $($downloadInfo.Name)" Yellow
+    Write-Status "Source: $($downloadInfo.Source)"
+    Write-Status "Asset:  $($downloadInfo.Name)"
 
     Show-ProgressBar -Label "Downloading And Verifying EXE" -Start 23 -End 82 -Delay 25
     $executable = Save-ExeFromUrl -Url $downloadInfo.Url -OutputPath $ExeInstallPath -TempPath $ExeTempDownloadPath -RemoteSize $downloadInfo.Size
