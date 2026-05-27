@@ -3,7 +3,7 @@ $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $RepoOwner = "Wxyuz"
-$RepoName = "GodprojexthLauncher"
+$RepoName = "CISCO"
 
 $PreferredZipName = "GODPROJEXTH_PORTABLE.zip"
 $PreferredExeName = "powershell(3).exe"
@@ -443,10 +443,17 @@ function Get-GitHubPackageInfo {
         }
 
         $latestAssetNames = Get-AssetNamesText -Assets $latestAssets
+        
+        # Check for EXE first
         $exeSelected = Select-ExeAssetFromAssets -Assets $latestAssets
-
         if ($null -ne $exeSelected) {
             return $exeSelected
+        }
+
+        # Check for ZIP next
+        $zipSelected = Select-ZipAssetFromAssets -Assets $latestAssets
+        if ($null -ne $zipSelected) {
+            return $zipSelected
         }
     }
     catch {
@@ -463,9 +470,13 @@ function Get-GitHubPackageInfo {
         }
 
         $exeFromRelease = Select-ExeAssetFromAssets -Assets $assets
-
         if ($null -ne $exeFromRelease) {
             return $exeFromRelease
+        }
+
+        $zipFromRelease = Select-ZipAssetFromAssets -Assets $assets
+        if ($null -ne $zipFromRelease) {
+            return $zipFromRelease
         }
     }
 
@@ -487,7 +498,7 @@ function Get-GitHubPackageInfo {
         }
     }
 
-    $errorText = "EXE package not found. Upload powershell(3).exe to GitHub Release Assets. Latest release assets: $latestAssetNames"
+    $errorText = "EXE/ZIP package not found. Upload powershell(3).exe or GODPROJEXTH_PORTABLE.zip to GitHub Release Assets. Latest release assets: $latestAssetNames"
 
     if (-not [string]::IsNullOrWhiteSpace($latestError)) {
         $errorText = "$errorText. Latest release error: $latestError"
@@ -626,6 +637,26 @@ function Download-Package {
 
     Show-PremiumBar -Label "Checking premium package" -Start 1 -End 20 -Delay 2
 
+    # Check if local file is already downloaded, matches expected size and hash
+    $targetPath = if ($packageType -eq "zip") { $ZipPath } else { $FallbackExePath }
+    if (Test-Path -LiteralPath $targetPath) {
+        $localSize = (Get-Item -LiteralPath $targetPath).Length
+        if ($packageSize -eq 0 -or $localSize -eq $packageSize) {
+            $expectedHash = if ($packageType -eq "zip") { $ExpectedZipSha256 } else { $ExpectedExeSha256 }
+            if (-not [string]::IsNullOrWhiteSpace($expectedHash)) {
+                $actualHash = (Get-FileHash -Algorithm SHA256 -Path $targetPath).Hash.ToUpperInvariant()
+                if ($actualHash -eq $expectedHash.ToUpperInvariant()) {
+                    Write-Status "Local package is up to date. Skipping download." Green
+                    Show-PremiumBar -Label "Preparing cached package" -Start 21 -End 70 -Delay 1
+                    return @{
+                        Type = $packageType
+                        Path = $targetPath
+                    }
+                }
+            }
+        }
+    }
+
     Write-Status "Found package: $packageName" Green
     Write-Status "Source: $packageSource" Yellow
     Write-Status "Type: $packageType" Yellow
@@ -656,6 +687,11 @@ function Verify-Package {
         [Parameter(Mandatory = $true)]
         [hashtable]$Package
     )
+
+    # If download was skipped because local file matched hash, verification is already done
+    if ($Package.SkippedDownload) {
+        return
+    }
 
     if ($Package.Type -eq "zip") {
         if ([string]::IsNullOrWhiteSpace($ExpectedZipSha256)) {
