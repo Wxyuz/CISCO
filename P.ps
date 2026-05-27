@@ -1,173 +1,433 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
+catch {
+}
+
+# ==========================================================
+# GODPROJEXTH PIXEL ARCade RELEASE RUNNER
+# Full .ps script for GitHub Raw + GitHub Release EXE runner
+# ==========================================================
+
+$AppTitle = "GODPROJEXTH PIXEL ARCADE RUNNER"
+$AppName = "GODPROJEXTH"
+
+# ==========================================================
+# CONFIG
+# ==========================================================
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
 
-$PreferredZipName = "GODPROJEXTH_PORTABLE.zip"
-$PreferredExeName = "powershell.exe"
-
-$PossibleZipNames = @(
-    "GODPROJEXTH_PORTABLE.zip",
-    "POWERSHELLGODPROJEXTH.zip",
-    "GODPROJEXTH.zip",
-    "GODPROJEXTH_ALPHA.zip",
-    "ALPHA_GODPROJEXTH.zip"
-)
-
-$PossibleExeNames = @(
-    "powershell(3).exe",
-    "powershell.exe",
-    "Powershell.exe",
+# ?????????? .exe ????? GitHub Release ?????? ???????????????????????????????????????
+$PreferredExeAssetName = "powershell.exe"
+$PossibleExeAssetNames = @(
     "POWERSHELLGODPROJEXTH.exe",
+    "powershell(1).exe",
+    "powershell.exe",
     "GODPROJEXTH.exe",
-    "GODPROJEXTH_ALPHA.exe",
-    "ALPHA_GODPROJEXTH.exe",
-    "GODPROJEXTHALPHA.exe",
-    "_Flix.exe"
+    "CISCO.exe"
 )
 
-$InstallDir = Join-Path $env:LOCALAPPDATA "CISCO"
-$PackageDir = Join-Path $InstallDir "package"
+# SHA256 ??????? .exe ???????????
+$ExpectedExeSha256 = "034E55EC9175343423CFFFD089DA966FCF1636E6BB1BDC4C199ED9BE4D1364C6A"
+
+# ???????? Direct Download URL ??? .exe ??????????????????
+# ???????????? ?????????????? GitHub Release ????????? repo ?????????
+$DirectExeUrl = ""
+
+$InstallDir = Join-Path $env:LOCALAPPDATA "GodprojexthPremium"
 $RuntimeTempDir = Join-Path $InstallDir "runtime_tmp"
-$ZipPath = Join-Path $InstallDir $PreferredZipName
-$TempZipPath = Join-Path $InstallDir ($PreferredZipName + ".download")
-$FallbackExePath = Join-Path $InstallDir $PreferredExeName
-$TempExePath = Join-Path $InstallDir ($PreferredExeName + ".download")
+$ExeInstallPath = Join-Path $InstallDir $PreferredExeAssetName
+$ExeTempDownloadPath = Join-Path $InstallDir ($PreferredExeAssetName + ".download")
 
-$ExpectedZipSha256 = ""
-$ExpectedExeSha256 = "034E55EC9175343423CFFD089DA966FCF1636E6BB1BDC4C199ED9BE4D1364C6A"
-
-$AlwaysDownloadLatest = $true
 $DownloadRetryCount = 3
+$MinimumExeSizeBytes = 102400
+
+# ==========================================================
+# ANSI / TERMINAL UI HELPERS
+# ==========================================================
+$script:Esc = [char]27
+$script:AnsiReset = "$($script:Esc)[0m"
+
+function Get-ConsoleWidthSafe {
+    try {
+        return [Math]::Max(96, $Host.UI.RawUI.WindowSize.Width)
+    }
+    catch {
+        return 120
+    }
+}
 
 function Initialize-Console {
     try {
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         [Console]::InputEncoding = [System.Text.Encoding]::UTF8
         [Console]::CursorVisible = $false
-        $Host.UI.RawUI.WindowTitle = "CISCO PREMIUM RUNNER"
+        $Host.UI.RawUI.WindowTitle = $AppTitle
     }
     catch {
     }
 
     try {
         $max = $Host.UI.RawUI.MaxPhysicalWindowSize
-        $buffer = $Host.UI.RawUI.BufferSize
-        $window = $Host.UI.RawUI.WindowSize
+        $targetWidth = [Math]::Min(140, $max.Width)
+        $targetHeight = [Math]::Min(38, $max.Height)
 
-        $targetWidth = [Math]::Min(108, $max.Width)
-        $targetHeight = [Math]::Min(32, $max.Height)
-
-        if ($buffer.Width -lt $targetWidth) {
-            $Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size($targetWidth, [Math]::Max($buffer.Height, 1000))
+        if ($Host.UI.RawUI.BufferSize.Width -lt $targetWidth) {
+            $Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size($targetWidth, 3000)
         }
 
-        if ($window.Width -lt 96) {
-            $Host.UI.RawUI.WindowSize = New-Object System.Management.Automation.Host.Size($targetWidth, $targetHeight)
+        $Host.UI.RawUI.WindowSize = New-Object System.Management.Automation.Host.Size($targetWidth, $targetHeight)
+
+        try {
+            $Host.UI.RawUI.BackgroundColor = 'Black'
+            $Host.UI.RawUI.ForegroundColor = 'Gray'
+            Clear-Host
+        }
+        catch {
+            Clear-Host
         }
     }
     catch {
+        Clear-Host
     }
-
-    Clear-Host
 }
 
-function Get-ConsoleWidthSafe {
+function Restore-Console {
     try {
-        return [Math]::Max(80, $Host.UI.RawUI.WindowSize.Width)
+        [Console]::CursorVisible = $true
     }
     catch {
-        return 100
     }
 }
 
-function Write-Typed {
+function Strip-Ansi {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    return [regex]::Replace($Text, [regex]::Escape($script:Esc) + '\[[0-9;]*m', '')
+}
+
+function New-AnsiStyle {
+    param(
+        [string]$ForegroundHex = "",
+        [string]$BackgroundHex = "",
+        [switch]$Bold,
+        [switch]$Dim
+    )
+
+    $parts = New-Object System.Collections.Generic.List[string]
+
+    if ($Bold) {
+        $parts.Add("1")
+    }
+
+    if ($Dim) {
+        $parts.Add("2")
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ForegroundHex)) {
+        $clean = $ForegroundHex.TrimStart('#')
+        if ($clean.Length -eq 6) {
+            $r = [Convert]::ToInt32($clean.Substring(0, 2), 16)
+            $g = [Convert]::ToInt32($clean.Substring(2, 2), 16)
+            $b = [Convert]::ToInt32($clean.Substring(4, 2), 16)
+            $parts.Add("38;2;$r;$g;$b")
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($BackgroundHex)) {
+        $clean = $BackgroundHex.TrimStart('#')
+        if ($clean.Length -eq 6) {
+            $r = [Convert]::ToInt32($clean.Substring(0, 2), 16)
+            $g = [Convert]::ToInt32($clean.Substring(2, 2), 16)
+            $b = [Convert]::ToInt32($clean.Substring(4, 2), 16)
+            $parts.Add("48;2;$r;$g;$b")
+        }
+    }
+
+    if ($parts.Count -eq 0) {
+        return ""
+    }
+
+    return "$($script:Esc)[$($parts -join ';')m"
+}
+
+function Write-AnsiCentered {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    $plain = Strip-Ansi -Text $Text
+    $width = Get-ConsoleWidthSafe
+    $left = [Math]::Max(0, [Math]::Floor(($width - $plain.Length) / 2))
+    Write-Host ((" " * $left) + $Text)
+}
+
+function Write-PlainCentered {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Text,
-        [System.ConsoleColor]$Color = [System.ConsoleColor]::Yellow,
-        [int]$Delay = 1,
-        [switch]$NoNewLine
-    )
-
-    foreach ($char in $Text.ToCharArray()) {
-        Write-Host $char -NoNewline -ForegroundColor $Color
-
-        if ($Delay -gt 0) {
-            Start-Sleep -Milliseconds $Delay
-        }
-    }
-
-    if (-not $NoNewLine) {
-        Write-Host ""
-    }
-}
-
-function Write-Centered {
-    param(
-        [string]$Text,
-        [System.ConsoleColor]$Color = [System.ConsoleColor]::Yellow,
-        [int]$Delay = 0
+        [System.ConsoleColor]$Color = [System.ConsoleColor]::Gray
     )
 
     $width = Get-ConsoleWidthSafe
     $left = [Math]::Max(0, [Math]::Floor(($width - $Text.Length) / 2))
-    $line = (" " * $left) + $Text
-
-    if ($Delay -le 0) {
-        Write-Host $line -ForegroundColor $Color
-    }
-    else {
-        Write-Typed $line $Color $Delay
-    }
+    Write-Host ((" " * $left) + $Text) -ForegroundColor $Color
 }
 
 function Write-Status {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$Text,
-        [System.ConsoleColor]$Color = [System.ConsoleColor]::Green,
-        [int]$Delay = 1
+        [System.ConsoleColor]$Color = [System.ConsoleColor]::Green
     )
 
     Write-Host "   " -NoNewline
-    Write-Typed "[CISCO] $Text" $Color $Delay
+    Write-Host "[$AppName] $Text" -ForegroundColor $Color
 }
 
-function Show-Header {
-    Clear-Host
+function Get-PixelFontMap {
+    $map = @{}
+    $map["G"] = @(
+        " ���� ",
+        "��  �� ",
+        "��     ",
+        "�� ��� ",
+        "��  �� ",
+        " ����  "
+    )
+    $map["O"] = @(
+        " ����  ",
+        "��  �� ",
+        "��  �� ",
+        "��  �� ",
+        "��  �� ",
+        " ����  "
+    )
+    $map["D"] = @(
+        "�����  ",
+        "��  �� ",
+        "��   ��",
+        "��   ��",
+        "��  �� ",
+        "�����  "
+    )
+    $map["P"] = @(
+        "�����  ",
+        "��  �� ",
+        "�����  ",
+        "��     ",
+        "��     ",
+        "��     "
+    )
+    $map["R"] = @(
+        "�����  ",
+        "��  �� ",
+        "�����  ",
+        "�� ��  ",
+        "��  �� ",
+        "��   ��"
+    )
+    $map["J"] = @(
+        "   ����",
+        "     ��",
+        "     ��",
+        "��   ��",
+        "��   ��",
+        " ����� "
+    )
+    $map["E"] = @(
+        "������ ",
+        "��     ",
+        "�����  ",
+        "��     ",
+        "��     ",
+        "������ "
+    )
+    $map["X"] = @(
+        "��   ��",
+        " �� �� ",
+        "  ���  ",
+        "  ���  ",
+        " �� �� ",
+        "��   ��"
+    )
+    $map["T"] = @(
+        "������ ",
+        "  ��   ",
+        "  ��   ",
+        "  ��   ",
+        "  ��   ",
+        "  ��   "
+    )
+    $map["H"] = @(
+        "��   ��",
+        "��   ��",
+        "�������",
+        "��   ��",
+        "��   ��",
+        "��   ��"
+    )
+    $map[" "] = @(
+        "   ",
+        "   ",
+        "   ",
+        "   ",
+        "   ",
+        "   "
+    )
+    return $map
+}
+
+function Get-PixelWordRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Word
+    )
+
+    $fontMap = Get-PixelFontMap
+    $rows = @("", "", "", "", "", "")
+
+    foreach ($char in $Word.ToCharArray()) {
+        $key = [string]$char
+        if (-not $fontMap.ContainsKey($key)) {
+            $key = " "
+        }
+
+        $glyph = $fontMap[$key]
+        for ($i = 0; $i -lt 6; $i++) {
+            $rows[$i] += $glyph[$i] + "  "
+        }
+    }
+
+    return $rows
+}
+
+function Convert-PixelRowToAnsi {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Row,
+        [Parameter(Mandatory = $true)]
+        [string]$BaseHex,
+        [string]$HighlightHex = "#F8FBFF",
+        [string]$ShadowHex = "#0F1720"
+    )
+
+    $builder = New-Object System.Text.StringBuilder
+    $length = $Row.Length
+
+    for ($i = 0; $i -lt $length; $i++) {
+        $char = $Row[$i]
+        if ($char -eq '�') {
+            $isEdge = ($i -eq 0 -or $Row[$i - 1] -eq ' ')
+            $isHighlight = $isEdge -or (($i % 4) -eq 0)
+            if ($isHighlight) {
+                [void]$builder.Append((New-AnsiStyle -ForegroundHex $HighlightHex -Bold))
+            }
+            else {
+                [void]$builder.Append((New-AnsiStyle -ForegroundHex $BaseHex -Bold))
+            }
+            [void]$builder.Append('�')
+        }
+        elseif ($char -eq ' ') {
+            [void]$builder.Append(' ')
+        }
+        else {
+            [void]$builder.Append((New-AnsiStyle -ForegroundHex $ShadowHex))
+            [void]$builder.Append($char)
+        }
+    }
+
+    [void]$builder.Append($script:AnsiReset)
+    return $builder.ToString()
+}
+
+function Show-ScanlineRow {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Pattern,
+        [string]$Hex = "#1A222D"
+    )
+
+    $styled = (New-AnsiStyle -ForegroundHex $Hex -Dim) + $Pattern + $script:AnsiReset
+    Write-AnsiCentered -Text $styled
+}
+
+function Show-PixelLogoHeader {
+    $bgLine = (New-AnsiStyle -BackgroundHex "#000000") + (" " * ([Math]::Max(96, (Get-ConsoleWidthSafe)))) + $script:AnsiReset
+    Write-Host $bgLine
+
+    Show-ScanlineRow -Pattern "� ��  �� �  ��� �  ��  �� � ��  ��� �  ��� �" -Hex "#101820"
+    Show-ScanlineRow -Pattern "�  � �   �  � � � �   �  � � � � � � �   �" -Hex "#0D131A"
     Write-Host ""
-    Write-Centered "╔══════════════════════════════════════════════════════════════════════╗" DarkYellow
-    Write-Centered "║                                                                      ║" DarkYellow
-    Write-Centered "║                              C I S C O                               ║" Yellow
-    Write-Centered "║                                                                      ║" DarkYellow
-    Write-Centered "║                         █▀▀ ░░█ ▄██ █▀▀ █▀█                          ║" Yellow
-    Write-Centered "║                         █▄▄ ░░█ ▀▀█ █▄▄ █▄█                          ║" Yellow
-    Write-Centered "║                                                                      ║" DarkYellow
-    Write-Centered "║                         PREMIUM RUNNER                               ║" Yellow
-    Write-Centered "║                                                                      ║" DarkYellow
-    Write-Centered "╚══════════════════════════════════════════════════════════════════════╝" DarkYellow
+
+    $rows = Get-PixelWordRows -Word "GODPROJEXTH"
+    $shadowStyle = New-AnsiStyle -ForegroundHex "#05080B" -Bold
+    $rowColors = @(
+        "#F3FAFF",
+        "#DDEEFF",
+        "#B9DDFF",
+        "#7DBDFF",
+        "#699BCB",
+        "#567A9F"
+    )
+
+    for ($i = 0; $i -lt $rows.Count; $i++) {
+        $shadow = $shadowStyle + " " + $rows[$i] + $script:AnsiReset
+        Write-AnsiCentered -Text $shadow
+
+        $mainRow = Convert-PixelRowToAnsi -Row $rows[$i] -BaseHex $rowColors[$i]
+        $prefix = ""
+        if (($i % 2) -eq 0) {
+            $prefix = (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "� " + $script:AnsiReset
+        }
+        else {
+            $prefix = (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "� " + $script:AnsiReset
+        }
+        Write-AnsiCentered -Text ($prefix + $mainRow)
+    }
+
     Write-Host ""
-    Write-Centered "GitHub Release  ->  Download powershell.exe  ->  Open Interface" DarkYellow 1
+
+    $subtitle = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + "[+] CMD CISCO BY GODPROJEXTH [+]" + $script:AnsiReset
+    Write-AnsiCentered -Text $subtitle
+
+    $divider = (New-AnsiStyle -ForegroundHex "#607B95") + "+--------------------------------------------------------------------------+" + $script:AnsiReset
+    $subline = (New-AnsiStyle -ForegroundHex "#7B93A8") + "�     GitHub Release  ?  Verify SHA256  ?  Prepare Runtime  ?  Open EXE    �" + $script:AnsiReset
+    $divider2 = (New-AnsiStyle -ForegroundHex "#607B95") + "+--------------------------------------------------------------------------+" + $script:AnsiReset
+
+    Write-AnsiCentered -Text $divider
+    Write-AnsiCentered -Text $subline
+    Write-AnsiCentered -Text $divider2
+
+    Write-Host ""
+    Show-ScanlineRow -Pattern "�� �  ��� � � ��  �� ��  �  ��  � ��  �� ��  �" -Hex "#0E151D"
+    Show-ScanlineRow -Pattern "� ��  � � � � ��  �  ��  �  ��  � ��  �� ��  �" -Hex "#111A23"
     Write-Host ""
 }
 
-function Show-PremiumBar {
+function Show-ProgressBar {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Label,
         [int]$Start = 0,
         [int]$End = 100,
-        [int]$Delay = 2
+        [int]$Delay = 6
     )
 
     $barWidth = 52
-    $frames = @("◜", "◠", "◝", "◞", "◡", "◟")
-    $shine = @("◆", "✦", "◇", "✦")
+    $frames = @("?", "?", "?", "?", "?", "?")
+    $stages = @("CONNECTING", "DOWNLOADING", "VERIFYING", "FINALIZING", "SUCCESSFULLY")
 
-    Write-Host ""
-    Write-Centered $Label Yellow 1
+    $labelText = (New-AnsiStyle -ForegroundHex "#CFE8FF" -Bold) + $Label + $script:AnsiReset
+    Write-AnsiCentered -Text $labelText
 
     for ($i = $Start; $i -le $End; $i += 4) {
         if ($i -gt 100) {
@@ -175,47 +435,37 @@ function Show-PremiumBar {
         }
 
         $filled = [Math]::Floor(($i / 100) * $barWidth)
-
-        if ($filled -lt 0) {
-            $filled = 0
-        }
-
-        if ($filled -gt $barWidth) {
-            $filled = $barWidth
-        }
+        if ($filled -lt 0) { $filled = 0 }
+        if ($filled -gt $barWidth) { $filled = $barWidth }
 
         $empty = $barWidth - $filled
         $spin = $frames[$i % $frames.Count]
-        $spark = $shine[$i % $shine.Count]
 
-        $barFull = "█" * $filled
-        $barEmpty = "▓" * $empty
-
-        $state = "CONNECTING"
-
-        if ($i -ge 35 -and $i -lt 70) {
-            $state = "DOWNLOADING"
+        $state = $stages[0]
+        if ($i -ge 25 -and $i -lt 60) {
+            $state = $stages[1]
         }
-        elseif ($i -ge 70 -and $i -lt 100) {
-            $state = "FINALIZING"
+        elseif ($i -ge 60 -and $i -lt 82) {
+            $state = $stages[2]
+        }
+        elseif ($i -ge 82 -and $i -lt 100) {
+            $state = $stages[3]
         }
         elseif ($i -ge 100) {
-            $state = "SUCCESSFULLY"
+            $state = $stages[4]
         }
 
-        $width = Get-ConsoleWidthSafe
-        $visualLength = $barWidth + 34
-        $left = [Math]::Max(0, [Math]::Floor(($width - $visualLength) / 2))
+        $progressPrefix = (New-AnsiStyle -ForegroundHex "#DDEEFF" -Bold) + $spin + " " + $script:AnsiReset
+        $progressLeft = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "�" + $script:AnsiReset
+        $progressFill = (New-AnsiStyle -ForegroundHex "#94D3FF" -Bold) + ("�" * $filled) + $script:AnsiReset
+        $progressEmpty = (New-AnsiStyle -ForegroundHex "#243241") + ("�" * $empty) + $script:AnsiReset
+        $progressRight = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "�" + $script:AnsiReset
+        $percent = (New-AnsiStyle -ForegroundHex "#F2FAFF" -Bold) + (" {0,3}% " -f $i) + $script:AnsiReset
+        $stateText = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + $state + $script:AnsiReset
 
+        $line = $progressPrefix + $progressLeft + $progressFill + $progressEmpty + $progressRight + $percent + $stateText
         Write-Host "`r" -NoNewline
-        Write-Host (" " * $left) -NoNewline
-        Write-Host "$spin " -NoNewline -ForegroundColor White
-        Write-Host "╞" -NoNewline -ForegroundColor DarkYellow
-        Write-Host $barFull -NoNewline -ForegroundColor Yellow
-        Write-Host $barEmpty -NoNewline -ForegroundColor DarkGray
-        Write-Host "╡ " -NoNewline -ForegroundColor DarkYellow
-        Write-Host ("{0,3}%" -f $i) -NoNewline -ForegroundColor White
-        Write-Host "  $spark $state" -NoNewline -ForegroundColor Yellow
+        Write-AnsiCentered -Text $line
 
         if ($Delay -gt 0) {
             Start-Sleep -Milliseconds $Delay
@@ -223,21 +473,23 @@ function Show-PremiumBar {
     }
 
     Write-Host ""
+    Write-Host ""
 }
 
 function Show-Successfully {
+    $success = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + "SUCCESSFULLY" + $script:AnsiReset
+    $info = (New-AnsiStyle -ForegroundHex "#D6F7E2") + "Executable launched successfully." + $script:AnsiReset
+    Write-AnsiCentered -Text $success
+    Write-AnsiCentered -Text $info
     Write-Host ""
-    Write-Centered "SUCCESSFULLY" Green 2
-    Start-Sleep -Milliseconds 100
 }
 
+# ==========================================================
+# FILE / HASH / DOWNLOAD HELPERS
+# ==========================================================
 function Ensure-InstallDir {
     if (-not (Test-Path -LiteralPath $InstallDir)) {
         New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    }
-
-    if (-not (Test-Path -LiteralPath $PackageDir)) {
-        New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
     }
 
     if (-not (Test-Path -LiteralPath $RuntimeTempDir)) {
@@ -258,6 +510,73 @@ function Prepare-RuntimeTemp {
     }
 }
 
+function Get-Sha256Safe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "File not found for hash check: $Path"
+    }
+
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
+}
+
+function Assert-ExeHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExePath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedExeSha256)) {
+        Write-Status "ExpectedExeSha256 is empty, skipped hash verification." Yellow
+        return
+    }
+
+    $actual = Get-Sha256Safe -Path $ExePath
+    $expected = $ExpectedExeSha256.ToUpperInvariant()
+
+    Write-Status "Expected SHA256: $expected" DarkYellow
+    Write-Status "Actual SHA256:   $actual" DarkYellow
+
+    if ($actual -ne $expected) {
+        throw "EXE SHA256 mismatch. The downloaded file does not match the EXE you provided."
+    }
+
+    Write-Status "EXE SHA256 verified successfully." Green
+}
+
+function Test-PortableExecutable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    try {
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            if ($stream.Length -lt 2) {
+                return $false
+            }
+
+            $buffer = New-Object byte[] 2
+            [void]$stream.Read($buffer, 0, 2)
+            return ($buffer[0] -eq 0x4D -and $buffer[1] -eq 0x5A)
+        }
+        finally {
+            $stream.Close()
+        }
+    }
+    catch {
+        return $false
+    }
+}
+
 function Invoke-GitHubApi {
     param(
         [Parameter(Mandatory = $true)]
@@ -265,8 +584,8 @@ function Invoke-GitHubApi {
     )
 
     $headers = @{
-        "User-Agent" = "GODPROJEXTH"
-        "Accept" = "application/vnd.github+json"
+        "User-Agent"    = "GODPROJEXTH-CISCO-RUNNER"
+        "Accept"        = "application/vnd.github+json"
         "Cache-Control" = "no-cache"
     }
 
@@ -274,240 +593,101 @@ function Invoke-GitHubApi {
 }
 
 function Get-LatestRelease {
-    $latestUri = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
-
+    $uri = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
     try {
-        return Invoke-GitHubApi -Uri $latestUri
+        return Invoke-GitHubApi -Uri $uri
     }
     catch {
-        throw "Cannot read latest release from GitHub. Make sure repo is public and release exists."
+        throw "Cannot read latest GitHub release. Make sure the repo is public and the release exists."
     }
 }
 
-function Get-AllReleases {
-    $releasesUri = "https://api.github.com/repos/$RepoOwner/$RepoName/releases?per_page=30"
-
-    try {
-        $releases = Invoke-GitHubApi -Uri $releasesUri
-
-        if ($null -eq $releases) {
-            return @()
-        }
-
-        return @($releases)
-    }
-    catch {
-        return @()
-    }
-}
-
-function Get-AssetNamesText {
+function Select-ReleaseExeAsset {
     param(
+        [Parameter(Mandatory = $true)]
         [array]$Assets
     )
 
     if ($null -eq $Assets -or $Assets.Count -eq 0) {
-        return "No uploaded release assets found."
+        throw "Latest release has no assets."
     }
 
-    $names = @()
+    $exact = $Assets | Where-Object {
+        $_.name -ieq $PreferredExeAssetName -and -not [string]::IsNullOrWhiteSpace($_.browser_download_url)
+    } | Select-Object -First 1
 
-    foreach ($asset in $Assets) {
-        if ($null -ne $asset.name) {
-            $names += $asset.name
-        }
-    }
-
-    if ($names.Count -eq 0) {
-        return "No asset names found."
-    }
-
-    return ($names -join ", ")
-}
-
-function Select-ZipAssetFromAssets {
-    param(
-        [array]$Assets
-    )
-
-    if ($null -eq $Assets -or $Assets.Count -eq 0) {
-        return $null
-    }
-
-    $exact = $Assets | Where-Object { $_.name -ieq $PreferredZipName } | Select-Object -First 1
-
-    if ($exact -and -not [string]::IsNullOrWhiteSpace($exact.browser_download_url)) {
-        return @{
-            Url = $exact.browser_download_url
+    if ($null -ne $exact) {
+        return [PSCustomObject]@{
             Name = $exact.name
+            Url  = $exact.browser_download_url
             Size = [int64]$exact.size
-            Source = "release-zip-exact"
-            Type = "zip"
         }
     }
 
-    foreach ($possibleName in $PossibleZipNames) {
-        $match = $Assets | Where-Object { $_.name -ieq $possibleName } | Select-Object -First 1
+    foreach ($candidateName in $PossibleExeAssetNames) {
+        $candidate = $Assets | Where-Object {
+            $_.name -ieq $candidateName -and -not [string]::IsNullOrWhiteSpace($_.browser_download_url)
+        } | Select-Object -First 1
 
-        if ($match -and -not [string]::IsNullOrWhiteSpace($match.browser_download_url)) {
-            return @{
-                Url = $match.browser_download_url
-                Name = $match.name
-                Size = [int64]$match.size
-                Source = "release-zip-known"
-                Type = "zip"
+        if ($null -ne $candidate) {
+            return [PSCustomObject]@{
+                Name = $candidate.name
+                Url  = $candidate.browser_download_url
+                Size = [int64]$candidate.size
             }
         }
     }
 
-    $zipAssets = @($Assets | Where-Object { $_.name -match "\.zip$" -and $_.name -notmatch "Source code" })
+    $allExe = @($Assets | Where-Object {
+        $_.name -match '\.exe$' -and -not [string]::IsNullOrWhiteSpace($_.browser_download_url)
+    })
 
-    if ($zipAssets.Count -eq 1) {
-        return @{
-            Url = $zipAssets[0].browser_download_url
-            Name = $zipAssets[0].name
-            Size = [int64]$zipAssets[0].size
-            Source = "release-single-zip"
-            Type = "zip"
+    if ($allExe.Count -eq 1) {
+        return [PSCustomObject]@{
+            Name = $allExe[0].name
+            Url  = $allExe[0].browser_download_url
+            Size = [int64]$allExe[0].size
         }
     }
 
-    return $null
+    if ($allExe.Count -gt 1) {
+        $names = ($allExe | ForEach-Object { $_.name }) -join ", "
+        throw "Found multiple EXE assets in the latest release: $names. Keep one main EXE or rename the main file to $PreferredExeAssetName."
+    }
+
+    $assetNames = ($Assets | ForEach-Object { $_.name }) -join ", "
+    throw "No EXE asset found in the latest release. Assets found: $assetNames"
 }
 
-function Select-ExeAssetFromAssets {
-    param(
-        [array]$Assets
-    )
-
-    if ($null -eq $Assets -or $Assets.Count -eq 0) {
-        return $null
-    }
-
-    $exact = $Assets | Where-Object { $_.name -ieq $PreferredExeName } | Select-Object -First 1
-
-    if ($exact -and -not [string]::IsNullOrWhiteSpace($exact.browser_download_url)) {
-        return @{
-            Url = $exact.browser_download_url
-            Name = $exact.name
-            Size = [int64]$exact.size
-            Source = "release-exe-exact"
-            Type = "exe"
+function Get-DownloadInfo {
+    if (-not [string]::IsNullOrWhiteSpace($DirectExeUrl)) {
+        return [PSCustomObject]@{
+            Name   = $PreferredExeAssetName
+            Url    = $DirectExeUrl
+            Size   = 0
+            Source = "Direct URL"
         }
     }
 
-    foreach ($possibleName in $PossibleExeNames) {
-        $match = $Assets | Where-Object { $_.name -ieq $possibleName } | Select-Object -First 1
+    Write-Status "Connecting to the latest GitHub release..." Green
+    $release = Get-LatestRelease
+    $assets = @()
 
-        if ($match -and -not [string]::IsNullOrWhiteSpace($match.browser_download_url)) {
-            return @{
-                Url = $match.browser_download_url
-                Name = $match.name
-                Size = [int64]$match.size
-                Source = "release-exe-known"
-                Type = "exe"
-            }
-        }
+    if ($null -ne $release.assets) {
+        $assets = @($release.assets)
     }
 
-    $exeAssets = @($Assets | Where-Object { $_.name -match "\.exe$" })
+    $selected = Select-ReleaseExeAsset -Assets $assets
 
-    if ($exeAssets.Count -eq 1) {
-        return @{
-            Url = $exeAssets[0].browser_download_url
-            Name = $exeAssets[0].name
-            Size = [int64]$exeAssets[0].size
-            Source = "release-single-exe"
-            Type = "exe"
-        }
+    return [PSCustomObject]@{
+        Name   = $selected.Name
+        Url    = $selected.Url
+        Size   = $selected.Size
+        Source = "GitHub Latest Release"
     }
-
-    if ($exeAssets.Count -gt 1) {
-        $names = Get-AssetNamesText -Assets $exeAssets
-        throw "Multiple EXE assets found: $names. Keep only one EXE asset or rename one to $PreferredExeName."
-    }
-
-    return $null
 }
 
-function Get-GitHubPackageInfo {
-    $latestAssetNames = "No latest release checked."
-    $latestError = ""
-
-    try {
-        $latest = Get-LatestRelease
-        $latestAssets = @()
-
-        if ($null -ne $latest.assets) {
-            $latestAssets = @($latest.assets)
-        }
-
-        $latestAssetNames = Get-AssetNamesText -Assets $latestAssets
-        
-        # Check for EXE first
-        $exeSelected = Select-ExeAssetFromAssets -Assets $latestAssets
-        if ($null -ne $exeSelected) {
-            return $exeSelected
-        }
-
-        # Check for ZIP next
-        $zipSelected = Select-ZipAssetFromAssets -Assets $latestAssets
-        if ($null -ne $zipSelected) {
-            return $zipSelected
-        }
-    }
-    catch {
-        $latestError = $_.Exception.Message
-    }
-
-    $allReleases = Get-AllReleases
-
-    foreach ($release in $allReleases) {
-        $assets = @()
-
-        if ($null -ne $release.assets) {
-            $assets = @($release.assets)
-        }
-
-        $exeFromRelease = Select-ExeAssetFromAssets -Assets $assets
-        if ($null -ne $exeFromRelease) {
-            return $exeFromRelease
-        }
-
-        $zipFromRelease = Select-ZipAssetFromAssets -Assets $assets
-        if ($null -ne $zipFromRelease) {
-            return $zipFromRelease
-        }
-    }
-
-    foreach ($possibleName in $PossibleExeNames) {
-        $rawUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/$possibleName"
-
-        try {
-            $null = Invoke-WebRequest -Uri $rawUrl -Method Head -UseBasicParsing
-
-            return @{
-                Url = $rawUrl
-                Name = $possibleName
-                Size = 0
-                Source = "main-branch-raw-exe"
-                Type = "exe"
-            }
-        }
-        catch {
-        }
-    }
-
-    $errorText = "EXE/ZIP package not found. Upload powershell.exe or GODPROJEXTH_PORTABLE.zip to GitHub Release Assets. Latest release assets: $latestAssetNames"
-
-    if (-not [string]::IsNullOrWhiteSpace($latestError)) {
-        $errorText = "$errorText. Latest release error: $latestError"
-    }
-
-    throw $errorText
-}
-
-function Save-FileFromUrl {
+function Save-ExeFromUrl {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Url,
@@ -518,7 +698,7 @@ function Save-FileFromUrl {
         [int64]$RemoteSize
     )
 
-    $lastError = $null
+    $lastError = ""
 
     for ($attempt = 1; $attempt -le $DownloadRetryCount; $attempt++) {
         try {
@@ -526,6 +706,7 @@ function Save-FileFromUrl {
                 Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue
             }
 
+            Write-Status "Downloading EXE attempt $attempt/$DownloadRetryCount" Yellow
             Invoke-WebRequest -Uri $Url -OutFile $TempPath -UseBasicParsing
 
             if (-not (Test-Path -LiteralPath $TempPath)) {
@@ -534,13 +715,19 @@ function Save-FileFromUrl {
 
             $downloaded = Get-Item -LiteralPath $TempPath
 
-            if ($downloaded.Length -lt 10240) {
+            if ($downloaded.Length -lt $MinimumExeSizeBytes) {
                 throw "Downloaded file is too small."
             }
 
             if ($RemoteSize -gt 0 -and $downloaded.Length -ne $RemoteSize) {
-                throw "Downloaded size mismatch. Expected $RemoteSize bytes, got $($downloaded.Length) bytes."
+                throw "Downloaded file size does not match the release asset size."
             }
+
+            if (-not (Test-PortableExecutable -Path $TempPath)) {
+                throw "Downloaded file is not a valid Windows EXE file."
+            }
+
+            Assert-ExeHash -ExePath $TempPath
 
             if (Test-Path -LiteralPath $OutputPath) {
                 Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
@@ -554,7 +741,7 @@ function Save-FileFromUrl {
             catch {
             }
 
-            return
+            return $OutputPath
         }
         catch {
             $lastError = $_.Exception.Message
@@ -563,207 +750,35 @@ function Save-FileFromUrl {
                 Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue
             }
 
-            Start-Sleep -Milliseconds 350
+            Start-Sleep -Milliseconds 500
         }
     }
 
     throw "Download failed after $DownloadRetryCount attempts. Last error: $lastError"
 }
 
-function Clear-PackageDirectory {
-    if (Test-Path -LiteralPath $PackageDir) {
-        Remove-Item -LiteralPath $PackageDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-
-    New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
-}
-
-function Expand-ZipPackage {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ZipFile
-    )
-
-    Clear-PackageDirectory
-
-    try {
-        Expand-Archive -LiteralPath $ZipFile -DestinationPath $PackageDir -Force
-    }
-    catch {
-        throw "Cannot extract ZIP package. Rebuild ZIP and upload again."
-    }
-}
-
-function Find-ExeInsidePackage {
-    $exact = Get-ChildItem -LiteralPath $PackageDir -Filter $PreferredExeName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-
-    if ($null -ne $exact) {
-        return $exact.FullName
-    }
-
-    foreach ($possibleName in $PossibleExeNames) {
-        $match = Get-ChildItem -LiteralPath $PackageDir -Filter $possibleName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-
-        if ($null -ne $match) {
-            return $match.FullName
-        }
-    }
-
-    $allExe = @(Get-ChildItem -LiteralPath $PackageDir -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue)
-
-    if ($allExe.Count -eq 1) {
-        return $allExe[0].FullName
-    }
-
-    if ($allExe.Count -gt 1) {
-        $names = ($allExe | ForEach-Object { $_.Name }) -join ", "
-        throw "Multiple EXE files found inside ZIP: $names. Keep only one main EXE or name it $PreferredExeName."
-    }
-
-    throw "No EXE found inside ZIP package."
-}
-
-function Download-Package {
-    Ensure-InstallDir
-
-    Write-Status "Connecting to GitHub release." Green
-
-    $packageInfo = Get-GitHubPackageInfo
-    $packageUrl = $packageInfo.Url
-    $packageName = $packageInfo.Name
-    $packageSource = $packageInfo.Source
-    $packageType = $packageInfo.Type
-    $packageSize = [int64]$packageInfo.Size
-
-    Show-PremiumBar -Label "Checking premium package" -Start 1 -End 20 -Delay 2
-
-    # Check if local file is already downloaded, matches expected size and hash
-    $targetPath = if ($packageType -eq "zip") { $ZipPath } else { $FallbackExePath }
-    if (Test-Path -LiteralPath $targetPath) {
-        $localSize = (Get-Item -LiteralPath $targetPath).Length
-        if ($packageSize -eq 0 -or $localSize -eq $packageSize) {
-            $expectedHash = if ($packageType -eq "zip") { $ExpectedZipSha256 } else { $ExpectedExeSha256 }
-            if (-not [string]::IsNullOrWhiteSpace($expectedHash)) {
-                $actualHash = (Get-FileHash -Algorithm SHA256 -Path $targetPath).Hash.ToUpperInvariant()
-                if ($actualHash -eq $expectedHash.ToUpperInvariant()) {
-                    Write-Status "Local package is up to date. Skipping download." Green
-                    Show-PremiumBar -Label "Preparing cached package" -Start 21 -End 70 -Delay 1
-                    return @{
-                        Type = $packageType
-                        Path = $targetPath
-                    }
-                }
-            }
-        }
-    }
-
-    Write-Status "Found package: $packageName" Green
-    Write-Status "Source: $packageSource" Yellow
-    Write-Status "Type: $packageType" Yellow
-
-    Show-PremiumBar -Label "Downloading CISCO interface" -Start 21 -End 70 -Delay 2
-
-    if ($packageType -eq "zip") {
-        Save-FileFromUrl -Url $packageUrl -OutputPath $ZipPath -TempPath $TempZipPath -RemoteSize $packageSize
-        return @{
-            Type = "zip"
-            Path = $ZipPath
-        }
-    }
-
-    if ($packageType -eq "exe") {
-        Save-FileFromUrl -Url $packageUrl -OutputPath $FallbackExePath -TempPath $TempExePath -RemoteSize $packageSize
-        return @{
-            Type = "exe"
-            Path = $FallbackExePath
-        }
-    }
-
-    throw "Unknown package type."
-}
-
-function Verify-Package {
-    param(
-        [Parameter(Mandatory = $true)]
-        [hashtable]$Package
-    )
-
-    # If download was skipped because local file matched hash, verification is already done
-    if ($Package.SkippedDownload) {
-        return
-    }
-
-    if ($Package.Type -eq "zip") {
-        if ([string]::IsNullOrWhiteSpace($ExpectedZipSha256)) {
-            Write-Status "ZIP SHA256 skipped." Yellow
-            Show-PremiumBar -Label "Preparing verified package" -Start 71 -End 84 -Delay 1
-            return
-        }
-
-        $actualZip = (Get-FileHash -Algorithm SHA256 -Path $Package.Path).Hash.ToUpperInvariant()
-        $expectedZip = $ExpectedZipSha256.ToUpperInvariant()
-
-        if ($actualZip -ne $expectedZip) {
-            Remove-Item -LiteralPath $Package.Path -Force -ErrorAction SilentlyContinue
-            throw "ZIP SHA256 mismatch."
-        }
-
-        return
-    }
-
-    if ($Package.Type -eq "exe") {
-        if ([string]::IsNullOrWhiteSpace($ExpectedExeSha256)) {
-            Write-Status "EXE SHA256 skipped." Yellow
-            Show-PremiumBar -Label "Preparing verified package" -Start 71 -End 84 -Delay 1
-            return
-        }
-
-        $actualExe = (Get-FileHash -Algorithm SHA256 -Path $Package.Path).Hash.ToUpperInvariant()
-        $expectedExe = $ExpectedExeSha256.ToUpperInvariant()
-
-        if ($actualExe -ne $expectedExe) {
-            Remove-Item -LiteralPath $Package.Path -Force -ErrorAction SilentlyContinue
-            throw "EXE SHA256 mismatch."
-        }
-
-        return
-    }
-}
-
-function Prepare-Executable {
-    param(
-        [Parameter(Mandatory = $true)]
-        [hashtable]$Package
-    )
-
-    if ($Package.Type -eq "zip") {
-        Write-Status "Extracting portable package." Green
-        Show-PremiumBar -Label "Extracting CISCO package" -Start 85 -End 92 -Delay 1
-        Expand-ZipPackage -ZipFile $Package.Path
-        $exeInside = Find-ExeInsidePackage
-        return $exeInside
-    }
-
-    if ($Package.Type -eq "exe") {
-        Write-Status "Using onefile EXE fallback." Yellow
-        Show-PremiumBar -Label "Preparing onefile runtime" -Start 85 -End 92 -Delay 1
-        return $Package.Path
-    }
-
-    throw "Cannot prepare executable."
-}
-
-function Open-GuiExe {
+# ==========================================================
+# RUN
+# ==========================================================
+function Open-Executable {
     param(
         [Parameter(Mandatory = $true)]
         [string]$ExecutablePath
     )
 
-    Write-Status "Preparing clean runtime temp." Green
+    if (-not (Test-Path -LiteralPath $ExecutablePath)) {
+        throw "Executable not found: $ExecutablePath"
+    }
+
+    if (-not (Test-PortableExecutable -Path $ExecutablePath)) {
+        throw "Target file is not a valid Windows EXE: $ExecutablePath"
+    }
+
+    Write-Status "Preparing clean runtime temp..." Green
     Prepare-RuntimeTemp
 
-    Write-Status "Opening premium interface." Green
-    Show-PremiumBar -Label "Opening interface" -Start 93 -End 100 -Delay 1
+    Write-Status "Opening executable..." Green
+    Show-ProgressBar -Label "Opening GODPROJEXTH Interface" -Start 83 -End 100 -Delay 5
     Show-Successfully
 
     $oldTemp = $env:TEMP
@@ -774,7 +789,6 @@ function Open-GuiExe {
         $env:TMP = $RuntimeTempDir
 
         $workingDirectory = Split-Path -Parent $ExecutablePath
-
         Start-Process -FilePath $ExecutablePath -WorkingDirectory $workingDirectory
     }
     finally {
@@ -784,46 +798,54 @@ function Open-GuiExe {
 }
 
 function Exit-Runner {
-    Start-Sleep -Milliseconds 80
-
-    try {
-        [Console]::CursorVisible = $true
-    }
-    catch {
-    }
-
+    Start-Sleep -Milliseconds 120
+    Restore-Console
     [System.Environment]::Exit(0)
 }
 
+# ==========================================================
+# MAIN
+# ==========================================================
 try {
     Initialize-Console
-    Show-Header
+    Show-PixelLogoHeader
+    Ensure-InstallDir
 
-    $package = Download-Package
-    Verify-Package -Package $package
-    $executable = Prepare-Executable -Package $package
-    Open-GuiExe -ExecutablePath $executable
+    Show-ProgressBar -Label "Connecting To CISCO Release Server" -Start 1 -End 22 -Delay 5
+    $downloadInfo = Get-DownloadInfo
+
+    Write-Status "Source: $($downloadInfo.Source)" Cyan
+    Write-Status "Asset:  $($downloadInfo.Name)" Cyan
+
+    Show-ProgressBar -Label "Downloading And Verifying EXE" -Start 23 -End 82 -Delay 5
+    $executable = Save-ExeFromUrl -Url $downloadInfo.Url -OutputPath $ExeInstallPath -TempPath $ExeTempDownloadPath -RemoteSize $downloadInfo.Size
+
+    Open-Executable -ExecutablePath $executable
     Exit-Runner
 }
 catch {
-    try {
-        [Console]::CursorVisible = $true
-    }
-    catch {
-    }
+    Restore-Console
 
     Write-Host ""
-    Write-Host "   [CISCO ERROR]" -ForegroundColor Red
+    Write-Host "   [GODPROJEXTH ERROR]" -ForegroundColor Red
     Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
-    Write-Host "   วิธีแก้ให้ RUN .exe ตัวนี้ได้ถูกต้อง:" -ForegroundColor Yellow
-    Write-Host "   1. Upload ไฟล์ powershell.exe เข้า GitHub Release Assets" -ForegroundColor Yellow
-    Write-Host "   2. ถ้าเปลี่ยนชื่อไฟล์ ให้แก้ตัวแปร `$PreferredExeName และ `$PossibleExeNames ใน P.ps ให้ตรงกัน" -ForegroundColor Yellow
-    Write-Host "   3. ถ้า build .exe ใหม่ ให้คำนวณ SHA256 ใหม่ แล้วแก้ `$ExpectedExeSha256" -ForegroundColor Yellow
-    Write-Host "   4. กด Update release แล้ว RUN คำสั่ง PowerShell อีกครั้ง" -ForegroundColor Yellow
+    Write-Host "   ?????????????????????:" -ForegroundColor Yellow
+    Write-Host "   1. ????? GitHub repo ??? Public ???? CISCO" -ForegroundColor Yellow
+    Write-Host "   2. ????????? P.ps ?? root ??? repo ?????????????????????????" -ForegroundColor Yellow
+    Write-Host "   3. ????? Release ????????????? 1 ????? repo ???" -ForegroundColor Yellow
+    Write-Host "   4. ??????????? .exe ??????????? Release Assets" -ForegroundColor Yellow
+    Write-Host "   5. ???????????????????????? POWERSHELLGODPROJEXTH.exe" -ForegroundColor Yellow
+    Write-Host "   6. ????????? Release ?????? direct download link ?????????? `$DirectExeUrl" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "   ????? RUN ??????????:" -ForegroundColor Yellow
+    Write-Host "   irm https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/P.ps | iex" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Release page:" -ForegroundColor Yellow
     Write-Host "   https://github.com/$RepoOwner/$RepoName/releases/latest" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "   Expected SHA256:" -ForegroundColor Yellow
+    Write-Host "   $ExpectedExeSha256" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Install path:" -ForegroundColor Yellow
     Write-Host "   $InstallDir" -ForegroundColor Yellow
@@ -831,3 +853,5 @@ catch {
     Write-Host "   Press Enter to close..." -ForegroundColor Yellow
     [void][System.Console]::ReadLine()
 }
+
+
