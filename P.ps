@@ -8,12 +8,12 @@ catch {
 }
 
 # ==========================================================
-# GODPROJEXTH PIXEL ARCade RELEASE RUNNER
+# CISCO PIXEL ARCade RELEASE RUNNER
 # Full .ps script for GitHub Raw + GitHub Release EXE runner
 # ==========================================================
 
-$AppTitle = "GODPROJEXTH PIXEL ARCADE RUNNER"
-$AppName = "GODPROJEXTH"
+$AppTitle = "CISCO PIXEL ARCADE RUNNER"
+$AppName = "CISCO"
 
 # ==========================================================
 # CONFIG
@@ -21,7 +21,7 @@ $AppName = "GODPROJEXTH"
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
 
-# ?????????? .exe ????? GitHub Release ?????? ???????????????????????????????????????
+# ถ้าอัปโหลด .exe ไว้ใน GitHub Release ล่าสุด ให้ชื่อไฟล์เป็นตัวใดตัวหนึ่งในรายการนี้
 $PreferredExeAssetName = "powershell.exe"
 $PossibleExeAssetNames = @(
     "POWERSHELLGODPROJEXTH.exe",
@@ -31,14 +31,14 @@ $PossibleExeAssetNames = @(
     "CISCO.exe"
 )
 
-# SHA256 ??????? .exe ???????????
-$ExpectedExeSha256 = "034E55EC9175343423CFFFD089DA966FCF1636E6BB1BDC4C199ED9BE4D1364C6A"
+# SHA256 ของไฟล์ .exe ที่คุณแนบมา
+$ExpectedExeSha256 = "034E55EC9175343423CFFD089DA966FCF1636E6BB1BDC4C199ED9BE4D1364C6A"
 
-# ???????? Direct Download URL ??? .exe ??????????????????
-# ???????????? ?????????????? GitHub Release ????????? repo ?????????
+# ถ้าคุณมี Direct Download URL ของ .exe ให้ใส่ที่นี่ได้เลย
+# ถ้าปล่อยว่าง ระบบจะไปดึงจาก GitHub Release ล่าสุดของ repo ด้านบนแทน
 $DirectExeUrl = ""
 
-$InstallDir = Join-Path $env:LOCALAPPDATA "GodprojexthPremium"
+$InstallDir = Join-Path $env:LOCALAPPDATA "CISCO"
 $RuntimeTempDir = Join-Path $InstallDir "runtime_tmp"
 $ExeInstallPath = Join-Path $InstallDir $PreferredExeAssetName
 $ExeTempDownloadPath = Join-Path $InstallDir ($PreferredExeAssetName + ".download")
@@ -195,85 +195,109 @@ function Write-Status {
 
 function Get-PixelFontMap {
     $map = @{}
+    $map["C"] = @(
+        " ████  ",
+        "██  ██ ",
+        "██     ",
+        "██     ",
+        "██  ██ ",
+        " ████  "
+    )
+    $map["I"] = @(
+        "██████ ",
+        "  ██   ",
+        "  ██   ",
+        "  ██   ",
+        "  ██   ",
+        "██████ "
+    )
+    $map["S"] = @(
+        " ████  ",
+        "██  ██ ",
+        " ███   ",
+        "   ███ ",
+        "██  ██ ",
+        " ████  "
+    )
     $map["G"] = @(
-        " ���� ",
-        "��  �� ",
-        "��     ",
-        "�� ��� ",
-        "��  �� ",
-        " ����  "
+        " ████ ",
+        "██  ██ ",
+        "██     ",
+        "██ ███ ",
+        "██  ██ ",
+        " ████  "
     )
     $map["O"] = @(
-        " ����  ",
-        "��  �� ",
-        "��  �� ",
-        "��  �� ",
-        "��  �� ",
-        " ����  "
+        " ████  ",
+        "██  ██ ",
+        "██  ██ ",
+        "██  ██ ",
+        "██  ██ ",
+        " ████  "
     )
     $map["D"] = @(
-        "�����  ",
-        "��  �� ",
-        "��   ��",
-        "��   ��",
-        "��  �� ",
-        "�����  "
+        "█████  ",
+        "██  ██ ",
+        "██   ██",
+        "██   ██",
+        "██  ██ ",
+        "█████  "
     )
     $map["P"] = @(
-        "�����  ",
-        "��  �� ",
-        "�����  ",
-        "��     ",
-        "��     ",
-        "��     "
+        "█████  ",
+        "██  ██ ",
+        "█████  ",
+        "██     ",
+        "██     ",
+        "██     "
     )
     $map["R"] = @(
-        "�����  ",
-        "��  �� ",
-        "�����  ",
-        "�� ��  ",
-        "��  �� ",
-        "��   ��"
+        "█████  ",
+        "██  ██ ",
+        "█████  ",
+        "██ ██  ",
+        "██  ██ ",
+        "██   ██"
     )
     $map["J"] = @(
-        "   ����",
-        "     ��",
-        "     ��",
-        "��   ��",
-        "��   ��",
-        " ����� "
+        "   ████",
+        "     ██",
+        "     ██",
+        "██   ██",
+        "██   ██",
+        " █████ "
     )
     $map["E"] = @(
-        "������ ",
-        "��     ",
-        "�����  ",
-        "��     ",
-        "��     ",
-        "������ "
+        "██████ ",
+        "██     ",
+        "█████  ",
+        "██     ",
+        "██     ",
+        "██████ "
     )
     $map["X"] = @(
-        "��   ��",
-        " �� �� ",
-        "  ���  ",
-        "  ���  ",
-        " �� �� ",
-        "��   ��"
+        "██   ██",
+        " ██ ██ ",
+        "  ███  ",
+        "  ███  ",
+        " ██ ██ ",
+        "██   ██"
     )
     $map["T"] = @(
-        "������ ",
-        "  ��   ",
-        "  ��   ",
-        "  ��   ",
-        "  ��   ",
-        "  ��   "
+        "██████ ",
+        "  ██   ",
+        "  ██   ",
+        "  ██   ",
+        "  ██   ",
+        "  ██   "
     )
     $map["H"] = @(
-        "��   ��",
-        "��   ��",
-        "�������",
-        "��   ��",
-        "��   ��",
-        "��   ��"
+        "██   ██",
+        "██   ██",
+        "███████",
+        "██   ██",
+        "██   ██",
+        "██   ██"
     )
     $map[" "] = @(
         "   ",
@@ -325,7 +349,7 @@ function Convert-PixelRowToAnsi {
 
     for ($i = 0; $i -lt $length; $i++) {
         $char = $Row[$i]
-        if ($char -eq '�') {
+        if ($char -eq '█') {
             $isEdge = ($i -eq 0 -or $Row[$i - 1] -eq ' ')
             $isHighlight = $isEdge -or (($i % 4) -eq 0)
             if ($isHighlight) {
@@ -334,7 +358,7 @@ function Convert-PixelRowToAnsi {
             else {
                 [void]$builder.Append((New-AnsiStyle -ForegroundHex $BaseHex -Bold))
             }
-            [void]$builder.Append('�')
+            [void]$builder.Append('█')
         }
         elseif ($char -eq ' ') {
             [void]$builder.Append(' ')
@@ -364,11 +388,11 @@ function Show-PixelLogoHeader {
     $bgLine = (New-AnsiStyle -BackgroundHex "#000000") + (" " * ([Math]::Max(96, (Get-ConsoleWidthSafe)))) + $script:AnsiReset
     Write-Host $bgLine
 
-    Show-ScanlineRow -Pattern "� ��  �� �  ��� �  ��  �� � ��  ��� �  ��� �" -Hex "#101820"
-    Show-ScanlineRow -Pattern "�  � �   �  � � � �   �  � � � � � � �   �" -Hex "#0D131A"
+    Show-ScanlineRow -Pattern "░ ░░  ░░ ░  ░░░ ░  ░░  ░░ ░ ░░  ░░░ ░  ░░░ ░" -Hex "#101820"
+    Show-ScanlineRow -Pattern "▒  ▒ ▒   ▒  ▒ ▒ ▒ ▒   ▒  ▒ ▒ ▒ ▒ ▒ ▒ ▒   ▒" -Hex "#0D131A"
     Write-Host ""
 
-    $rows = Get-PixelWordRows -Word "GODPROJEXTH"
+    $rows = Get-PixelWordRows -Word "CISCO"
     $shadowStyle = New-AnsiStyle -ForegroundHex "#05080B" -Bold
     $rowColors = @(
         "#F3FAFF",
@@ -386,10 +410,10 @@ function Show-PixelLogoHeader {
         $mainRow = Convert-PixelRowToAnsi -Row $rows[$i] -BaseHex $rowColors[$i]
         $prefix = ""
         if (($i % 2) -eq 0) {
-            $prefix = (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "� " + $script:AnsiReset
+            $prefix = (New-AnsiStyle -ForegroundHex "#0D141C" -Dim) + "░ " + $script:AnsiReset
         }
         else {
-            $prefix = (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "� " + $script:AnsiReset
+            $prefix = (New-AnsiStyle -ForegroundHex "#0B1117" -Dim) + "▒ " + $script:AnsiReset
         }
         Write-AnsiCentered -Text ($prefix + $mainRow)
     }
@@ -399,17 +423,17 @@ function Show-PixelLogoHeader {
     $subtitle = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + "[+] CMD CISCO BY GODPROJEXTH [+]" + $script:AnsiReset
     Write-AnsiCentered -Text $subtitle
 
-    $divider = (New-AnsiStyle -ForegroundHex "#607B95") + "+--------------------------------------------------------------------------+" + $script:AnsiReset
-    $subline = (New-AnsiStyle -ForegroundHex "#7B93A8") + "�     GitHub Release  ?  Verify SHA256  ?  Prepare Runtime  ?  Open EXE    �" + $script:AnsiReset
-    $divider2 = (New-AnsiStyle -ForegroundHex "#607B95") + "+--------------------------------------------------------------------------+" + $script:AnsiReset
+    $divider = (New-AnsiStyle -ForegroundHex "#607B95") + "┌──────────────────────────────────────────────────────────────────────────┐" + $script:AnsiReset
+    $subline = (New-AnsiStyle -ForegroundHex "#7B93A8") + "│     GitHub Release  →  Verify SHA256  →  Prepare Runtime  →  Open EXE    │" + $script:AnsiReset
+    $divider2 = (New-AnsiStyle -ForegroundHex "#607B95") + "└──────────────────────────────────────────────────────────────────────────┘" + $script:AnsiReset
 
     Write-AnsiCentered -Text $divider
     Write-AnsiCentered -Text $subline
     Write-AnsiCentered -Text $divider2
 
     Write-Host ""
-    Show-ScanlineRow -Pattern "�� �  ��� � � ��  �� ��  �  ��  � ��  �� ��  �" -Hex "#0E151D"
-    Show-ScanlineRow -Pattern "� ��  � � � � ��  �  ��  �  ��  � ��  �� ��  �" -Hex "#111A23"
+    Show-ScanlineRow -Pattern "░░ ░  ░░░ ░ ░ ░░  ░░ ░░  ░  ░░  ░ ░░  ░░ ░░  ░" -Hex "#0E151D"
+    Show-ScanlineRow -Pattern "▒ ▒▒  ▒ ▒ ▒ ▒ ▒▒  ▒  ▒▒  ▒  ▒▒  ▒ ▒▒  ▒▒ ▒▒  ▒" -Hex "#111A23"
     Write-Host ""
 }
 
@@ -423,7 +447,7 @@ function Show-ProgressBar {
     )
 
     $barWidth = 52
-    $frames = @("?", "?", "?", "?", "?", "?")
+    $frames = @("◜", "◠", "◝", "◞", "◡", "◟")
     $stages = @("CONNECTING", "DOWNLOADING", "VERIFYING", "FINALIZING", "SUCCESSFULLY")
 
     $labelText = (New-AnsiStyle -ForegroundHex "#CFE8FF" -Bold) + $Label + $script:AnsiReset
@@ -456,10 +480,10 @@ function Show-ProgressBar {
         }
 
         $progressPrefix = (New-AnsiStyle -ForegroundHex "#DDEEFF" -Bold) + $spin + " " + $script:AnsiReset
-        $progressLeft = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "�" + $script:AnsiReset
-        $progressFill = (New-AnsiStyle -ForegroundHex "#94D3FF" -Bold) + ("�" * $filled) + $script:AnsiReset
-        $progressEmpty = (New-AnsiStyle -ForegroundHex "#243241") + ("�" * $empty) + $script:AnsiReset
-        $progressRight = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "�" + $script:AnsiReset
+        $progressLeft = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "╞" + $script:AnsiReset
+        $progressFill = (New-AnsiStyle -ForegroundHex "#94D3FF" -Bold) + ("█" * $filled) + $script:AnsiReset
+        $progressEmpty = (New-AnsiStyle -ForegroundHex "#243241") + ("▓" * $empty) + $script:AnsiReset
+        $progressRight = (New-AnsiStyle -ForegroundHex "#5A7EA5") + "╡" + $script:AnsiReset
         $percent = (New-AnsiStyle -ForegroundHex "#F2FAFF" -Bold) + (" {0,3}% " -f $i) + $script:AnsiReset
         $stateText = (New-AnsiStyle -ForegroundHex "#A8F5C2" -Bold) + $state + $script:AnsiReset
 
@@ -698,6 +722,20 @@ function Save-ExeFromUrl {
         [int64]$RemoteSize
     )
 
+    # Check if local file is already downloaded, matches expected size and hash
+    if (Test-Path -LiteralPath $OutputPath) {
+        $localSize = (Get-Item -LiteralPath $OutputPath).Length
+        if ($RemoteSize -eq 0 -or $localSize -eq $RemoteSize) {
+            if (-not [string]::IsNullOrWhiteSpace($ExpectedExeSha256)) {
+                $actualHash = Get-Sha256Safe -Path $OutputPath
+                if ($actualHash -eq $ExpectedExeSha256.ToUpperInvariant()) {
+                    Write-Status "Local package is up to date. Skipping download." Green
+                    return $OutputPath
+                }
+            }
+        }
+    }
+
     $lastError = ""
 
     for ($attempt = 1; $attempt -le $DownloadRetryCount; $attempt++) {
@@ -778,7 +816,7 @@ function Open-Executable {
     Prepare-RuntimeTemp
 
     Write-Status "Opening executable..." Green
-    Show-ProgressBar -Label "Opening GODPROJEXTH Interface" -Start 83 -End 100 -Delay 5
+    Show-ProgressBar -Label "Opening CISCO Interface" -Start 83 -End 100 -Delay 5
     Show-Successfully
 
     $oldTemp = $env:TEMP
@@ -827,18 +865,18 @@ catch {
     Restore-Console
 
     Write-Host ""
-    Write-Host "   [GODPROJEXTH ERROR]" -ForegroundColor Red
+    Write-Host "   [CISCO ERROR]" -ForegroundColor Red
     Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
-    Write-Host "   ?????????????????????:" -ForegroundColor Yellow
-    Write-Host "   1. ????? GitHub repo ??? Public ???? CISCO" -ForegroundColor Yellow
-    Write-Host "   2. ????????? P.ps ?? root ??? repo ?????????????????????????" -ForegroundColor Yellow
-    Write-Host "   3. ????? Release ????????????? 1 ????? repo ???" -ForegroundColor Yellow
-    Write-Host "   4. ??????????? .exe ??????????? Release Assets" -ForegroundColor Yellow
-    Write-Host "   5. ???????????????????????? POWERSHELLGODPROJEXTH.exe" -ForegroundColor Yellow
-    Write-Host "   6. ????????? Release ?????? direct download link ?????????? `$DirectExeUrl" -ForegroundColor Yellow
+    Write-Host "   วิธีตั้งค่าแบบละเอียด:" -ForegroundColor Yellow
+    Write-Host "   1. สร้าง GitHub repo แบบ Public ชื่อ CISCO" -ForegroundColor Yellow
+    Write-Host "   2. สร้างไฟล์ P.ps ใน root ของ repo แล้ววางสคริปต์นี้ทั้งไฟล์" -ForegroundColor Yellow
+    Write-Host "   3. สร้าง Release ใหม่อย่างน้อย 1 ตัวใน repo นี้" -ForegroundColor Yellow
+    Write-Host "   4. อัปโหลดไฟล์ .exe ของคุณไว้ใน Release Assets" -ForegroundColor Yellow
+    Write-Host "   5. แนะนำให้ตั้งชื่อไฟล์เป็น powershell.exe" -ForegroundColor Yellow
+    Write-Host "   6. ถ้าไม่ใช้ Release ให้ใส่ direct download link ลงในตัวแปร `$DirectExeUrl" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "   ????? RUN ??????????:" -ForegroundColor Yellow
+    Write-Host "   ลิงก์ RUN ที่สั้นสวย:" -ForegroundColor Yellow
     Write-Host "   irm https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/P.ps | iex" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Release page:" -ForegroundColor Yellow
@@ -853,5 +891,3 @@ catch {
     Write-Host "   Press Enter to close..." -ForegroundColor Yellow
     [void][System.Console]::ReadLine()
 }
-
-
