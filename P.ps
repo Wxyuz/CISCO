@@ -15,21 +15,21 @@ catch {
 }
 
 try {
-    $SecurityProtocols = [Net.SecurityProtocolType]::Tls12
+    $Protocol = [Net.SecurityProtocolType]::Tls12
 
     if ([Enum]::GetNames([Net.SecurityProtocolType]) -contains "Tls13") {
-        $SecurityProtocols = $SecurityProtocols -bor [Net.SecurityProtocolType]::Tls13
+        $Protocol = $Protocol -bor [Net.SecurityProtocolType]::Tls13
     }
 
-    [Net.ServicePointManager]::SecurityProtocol = $SecurityProtocols
+    [Net.ServicePointManager]::SecurityProtocol = $Protocol
 }
 catch {
 }
 
 # ==========================================================
-# CISCO LOADER DOWNLOADER
-# Repo    : https://github.com/Wxyuz/CISCO
-# Release : v1.0.0
+# CISCO LOADER
+# Script  : https://github.com/Wxyuz/CISCO/blob/main/P.ps
+# Release : https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0
 # Asset   : powershell.exe
 # ==========================================================
 
@@ -37,16 +37,12 @@ $AppTitle = "CISCO LOADER"
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
 $TagName = "v1.0.0"
-
-# ไฟล์ใน GitHub Release ตามรูปภาพ
 $ReleaseAssetName = "powershell.exe"
-
-# บันทึกในเครื่องเป็นชื่อนี้ เพื่อไม่ให้ชนกับ Windows PowerShell จริงของระบบ
-# ถ้าต้องการให้ชื่อเหมือนใน Release เป๊ะ ให้เปลี่ยนเป็น: $LocalExeName = "powershell.exe"
-$LocalExeName = "CISCO-GUI.exe"
 
 $ReleasePage = "https://github.com/$RepoOwner/$RepoName/releases/tag/$TagName"
 $DownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$ReleaseAssetName"
+
+$LocalExeName = "powershell.exe"
 
 function Get-SafeLocalAppData {
     if (![string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
@@ -65,7 +61,7 @@ $InstallDir = Join-Path $InstallRoot "CISCO"
 $OutFile = Join-Path $InstallDir $LocalExeName
 $TempFile = "$OutFile.download"
 
-$LauncherMutexName = "Wxyuz_CISCO_Launcher_v1_0_0"
+$LauncherMutexName = "Global\Wxyuz_CISCO_Loader_v1_0_0"
 $LauncherMutex = $null
 $LauncherMutexCreated = $false
 
@@ -108,7 +104,11 @@ function Format-Bytes {
 }
 
 function Show-Header {
-    Clear-Host
+    try {
+        Clear-Host
+    }
+    catch {
+    }
 
     try {
         $Host.UI.RawUI.WindowTitle = $AppTitle
@@ -120,12 +120,11 @@ function Show-Header {
     Write-Host "                    CISCO LOADER                    " -ForegroundColor Yellow
     Write-Host "====================================================" -ForegroundColor Yellow
     Write-Host ""
-
-    Write-Info "Repo    : https://github.com/$RepoOwner/$RepoName"
+    Write-Info "Script  : https://github.com/$RepoOwner/$RepoName/blob/main/P.ps"
     Write-Info "Release : $ReleasePage"
     Write-Info "Asset   : $ReleaseAssetName"
-    Write-Info "Save As : $LocalExeName"
     Write-Info "URL     : $DownloadUrl"
+    Write-Info "Save To : $OutFile"
     Write-Host ""
 }
 
@@ -174,7 +173,11 @@ function Test-WindowsExe {
             $Buffer = New-Object byte[] 2
             [void]$Stream.Read($Buffer, 0, 2)
 
-            return ($Buffer[0] -eq 0x4D -and $Buffer[1] -eq 0x5A)
+            if ($Buffer[0] -eq 0x4D -and $Buffer[1] -eq 0x5A) {
+                return $true
+            }
+
+            return $false
         }
         finally {
             $Stream.Close()
@@ -268,7 +271,7 @@ function Get-RunningGuiProcess {
     return @($Result)
 }
 
-function Stop-OldTempFile {
+function Remove-TempFile {
     if (Test-Path -LiteralPath $TempFile) {
         try {
             Remove-Item -LiteralPath $TempFile -Force
@@ -301,7 +304,7 @@ function Download-FileWithProgress {
     $ProgressHandler = {
         param($Sender, $EventArgs)
 
-        $Percent = $EventArgs.ProgressPercentage
+        $Percent = [int]$EventArgs.ProgressPercentage
 
         if ($Percent -lt 0) {
             $Percent = 0
@@ -315,13 +318,13 @@ function Download-FileWithProgress {
 
         if ($EventArgs.TotalBytesToReceive -gt 0) {
             $Total = Format-Bytes $EventArgs.TotalBytesToReceive
-            $StatusText = "$Percent%  |  $Received / $Total"
+            $Status = "$Percent%  |  $Received / $Total"
         }
         else {
-            $StatusText = "$Received"
+            $Status = "$Received"
         }
 
-        Write-Progress -Activity "Downloading CISCO GUI..." -Status $StatusText -PercentComplete $Percent
+        Write-Progress -Activity "Downloading CISCO GUI..." -Status $Status -PercentComplete $Percent
     }
 
     $CompletedHandler = {
@@ -346,7 +349,7 @@ function Download-FileWithProgress {
         $WebClient.DownloadFileAsync([Uri]$Url, $Destination)
 
         while (-not $Sync.Done) {
-            Start-Sleep -Milliseconds 120
+            Start-Sleep -Milliseconds 100
         }
 
         Write-Progress -Activity "Downloading CISCO GUI..." -Completed
@@ -370,7 +373,7 @@ function Download-FileWithProgress {
 
 function Download-Loader {
     Ensure-Folder -Path $InstallDir
-    Stop-OldTempFile
+    Remove-TempFile
 
     Write-Info "Downloading Release Asset..."
     Write-Info "From : $DownloadUrl"
@@ -385,9 +388,11 @@ function Download-Loader {
 
     if (!(Test-WindowsExe -Path $TempFile)) {
         try {
+            $BadContent = Get-Content -LiteralPath $TempFile -TotalCount 5 -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $TempFile -Force
         }
         catch {
+            $BadContent = $null
         }
 
         throw "Downloaded file is not a valid Windows EXE. Check Release Asset name: $ReleaseAssetName"
@@ -398,7 +403,7 @@ function Download-Loader {
             Remove-Item -LiteralPath $OutFile -Force
         }
         catch {
-            throw "Cannot replace old GUI file. Close CISCO GUI first, then run again."
+            throw "Cannot replace old file because GUI is still running. Close CISCO first, then run again."
         }
     }
 
@@ -421,12 +426,11 @@ function Verify-Loader {
     }
 
     $Item = Get-Item -LiteralPath $OutFile
+
     Write-Ok "Valid Windows EXE"
     Write-Info "Size: $(Format-Bytes $Item.Length)"
-
     Write-Info "SHA256:"
     Get-FileHash -LiteralPath $OutFile -Algorithm SHA256 | Format-List
-
     Write-Host ""
 }
 
@@ -441,10 +445,11 @@ function Start-GuiOnce {
         }
 
         Write-Ok "Existing GUI restored"
+        Write-Host ""
         return
     }
 
-    Write-Info "Opening CISCO GUI..."
+    Write-Info "Opening GUI: $OutFile"
 
     $Process = Start-Process `
         -FilePath $OutFile `
@@ -475,7 +480,7 @@ try {
 
     if (-not $LauncherMutexCreated) {
         Show-Header
-        Write-Warn "Launcher is already running. Please wait for the first window to finish."
+        Write-Warn "Loader is already running. Please wait."
         Start-Sleep -Seconds 3
         exit
     }
@@ -486,9 +491,11 @@ try {
 
     if ($AlreadyRunning.Count -gt 0) {
         Write-Warn "CISCO GUI is already open."
+
         foreach ($Item in $AlreadyRunning) {
             [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
         }
+
         Write-Ok "No duplicate GUI opened"
         Start-Sleep -Seconds 2
         exit
@@ -507,12 +514,13 @@ catch {
     Write-Host ""
 
     Write-Warn "Checklist:"
-    Write-Host "1. Repo ต้องเป็น Public: https://github.com/Wxyuz/CISCO" -ForegroundColor Yellow
-    Write-Host "2. ต้องมี Release tag: v1.0.0" -ForegroundColor Yellow
-    Write-Host "3. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe" -ForegroundColor Yellow
-    Write-Host "4. ไฟล์ P.ps1 ต้องอยู่ที่ branch main" -ForegroundColor Yellow
-    Write-Host "5. ถ้า GUI ใช้ KeyAuth แบบล็อก HWID เครื่องอื่นจะใช้ไม่ได้ ต้องแก้ฝั่งโปรแกรม GUI/KeyAuth เอง" -ForegroundColor Yellow
-    Write-Host "6. ถ้า Windows Block ไฟล์ unsigned ให้เซ็นไฟล์หรือ publish แบบถูกต้อง ไม่แนะนำให้ปิดระบบป้องกันของ Windows" -ForegroundColor Yellow
+    Write-Host "1. ไฟล์ Script ต้องชื่อ P.ps ไม่ใช่ P.ps1" -ForegroundColor Yellow
+    Write-Host "2. Raw URL ต้องเป็น: https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps" -ForegroundColor Yellow
+    Write-Host "3. Repo ต้องเป็น Public: https://github.com/Wxyuz/CISCO" -ForegroundColor Yellow
+    Write-Host "4. Release ต้องเป็น: https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0" -ForegroundColor Yellow
+    Write-Host "5. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe แบบตัวเล็ก/ใหญ่ตรงกัน" -ForegroundColor Yellow
+    Write-Host "6. ถ้า GUI ของคุณล็อก HWID/KeyAuth เครื่องอื่นจะใช้ไม่ได้จนกว่าจะตั้งค่าฝั่ง KeyAuth ให้ถูกต้อง" -ForegroundColor Yellow
+    Write-Host "7. ถ้า Windows แจ้งเตือนไฟล์ unsigned ให้ publish/sign โปรแกรมให้ถูกต้อง ไม่แนะนำให้ปิดระบบป้องกัน Windows" -ForegroundColor Yellow
     Write-Host ""
 
     Write-Host "Press Enter to close..." -ForegroundColor DarkGray
@@ -524,6 +532,7 @@ finally {
             if ($LauncherMutexCreated) {
                 $LauncherMutex.ReleaseMutex()
             }
+
             $LauncherMutex.Dispose()
         }
         catch {
