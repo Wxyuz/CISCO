@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
 
 try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -15,8 +15,7 @@ catch {
 }
 
 # ==========================================================
-# CISCO LOADER FIXED VERSION
-# Version : 2026-06-10-FIX-NO-COUNT
+# CISCO GREEN BAR LOADER
 # Script  : https://github.com/Wxyuz/CISCO/blob/main/P.ps
 # Raw     : https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps
 # Release : https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0
@@ -24,21 +23,14 @@ catch {
 # ==========================================================
 
 $AppTitle = "CISCO LOADER"
-$ScriptVersion = "2026-06-10-FIX-NO-COUNT"
 
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
-$BranchName = "main"
 $TagName = "v1.0.0"
 
-$ScriptName = "P.ps"
 $ReleaseAssetName = "powershell.exe"
 $LocalExeName = "powershell.exe"
 
-$RepoUrl = "https://github.com/$RepoOwner/$RepoName"
-$ScriptPage = "https://github.com/$RepoOwner/$RepoName/blob/$BranchName/$ScriptName"
-$RawScriptUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$BranchName/$ScriptName"
-$ReleasePage = "https://github.com/$RepoOwner/$RepoName/releases/tag/$TagName"
 $DownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$ReleaseAssetName"
 
 function Get-SafeLocalAppData {
@@ -58,49 +50,11 @@ $InstallDir = Join-Path $InstallRoot "CISCO"
 $OutFile = Join-Path $InstallDir $LocalExeName
 $TempFile = "$OutFile.download"
 
-$LauncherMutexName = "Wxyuz_CISCO_Loader_v1_0_0_NoCount_Fix"
+$LauncherMutexName = "Wxyuz_CISCO_Green_Bar_Loader_v1_0_0"
 $LauncherMutex = $null
 $LauncherMutexCreated = $false
 
-function Write-Info {
-    param([string]$Text)
-    Write-Host "[+] $Text" -ForegroundColor Cyan
-}
-
-function Write-Ok {
-    param([string]$Text)
-    Write-Host "[OK] $Text" -ForegroundColor Green
-}
-
-function Write-Warn {
-    param([string]$Text)
-    Write-Host "[!] $Text" -ForegroundColor Yellow
-}
-
-function Write-Err {
-    param([string]$Text)
-    Write-Host "[ERROR] $Text" -ForegroundColor Red
-}
-
-function Format-Bytes {
-    param([Int64]$Bytes)
-
-    if ($Bytes -ge 1073741824) {
-        return ("{0:N2} GB" -f ($Bytes / 1073741824))
-    }
-
-    if ($Bytes -ge 1048576) {
-        return ("{0:N2} MB" -f ($Bytes / 1048576))
-    }
-
-    if ($Bytes -ge 1024) {
-        return ("{0:N2} KB" -f ($Bytes / 1024))
-    }
-
-    return "$Bytes Bytes"
-}
-
-function Show-Header {
+function Initialize-Console {
     try {
         Clear-Host
     }
@@ -113,23 +67,134 @@ function Show-Header {
     catch {
     }
 
-    Write-Host "====================================================" -ForegroundColor Yellow
-    Write-Host "                    CISCO LOADER                    " -ForegroundColor Yellow
-    Write-Host "====================================================" -ForegroundColor Yellow
+    try {
+        [Console]::CursorVisible = $false
+    }
+    catch {
+    }
+
+    try {
+        [Console]::ForegroundColor = [ConsoleColor]::Green
+    }
+    catch {
+    }
+}
+
+function Restore-Console {
+    try {
+        [Console]::CursorVisible = $true
+    }
+    catch {
+    }
+
+    try {
+        [Console]::ResetColor()
+    }
+    catch {
+    }
+}
+
+function Close-LoaderWindow {
+    Restore-Console
+
+    try {
+        Clear-Host
+    }
+    catch {
+    }
+
+    exit 0
+}
+
+function Show-GreenBar {
+    param(
+        [int]$Percent
+    )
+
+    if ($Percent -lt 0) {
+        $Percent = 0
+    }
+
+    if ($Percent -gt 100) {
+        $Percent = 100
+    }
+
+    $BarWidth = 70
+    $Filled = [int](($Percent * $BarWidth) / 100)
+
+    if ($Filled -lt 0) {
+        $Filled = 0
+    }
+
+    if ($Filled -gt $BarWidth) {
+        $Filled = $BarWidth
+    }
+
+    $Empty = $BarWidth - $Filled
+
+    $Block = [string][char]0x2588
+    $Space = " "
+
+    $Bar = "[" + ($Block * $Filled) + ($Space * $Empty) + "]"
+
+    try {
+        [Console]::SetCursorPosition(0, 0)
+    }
+    catch {
+    }
+
+    try {
+        [Console]::ForegroundColor = [ConsoleColor]::Green
+    }
+    catch {
+    }
+
+    try {
+        [Console]::Write($Bar)
+    }
+    catch {
+    }
+}
+
+function Show-ErrorScreen {
+    param(
+        [string]$Message
+    )
+
+    Restore-Console
+
+    try {
+        Clear-Host
+    }
+    catch {
+    }
+
+    try {
+        [Console]::ForegroundColor = [ConsoleColor]::Red
+    }
+    catch {
+    }
+
+    Write-Host ""
+    Write-Host "ERROR"
+    Write-Host ""
+    Write-Host $Message
     Write-Host ""
 
-    Write-Info "Version : $ScriptVersion"
-    Write-Info "Script  : $ScriptPage"
-    Write-Info "Raw     : $RawScriptUrl"
-    Write-Info "Release : $ReleasePage"
-    Write-Info "Asset   : $ReleaseAssetName"
-    Write-Info "URL     : $DownloadUrl"
-    Write-Info "Save To : $OutFile"
-    Write-Host ""
+    try {
+        [Console]::ResetColor()
+    }
+    catch {
+    }
+
+    Write-Host "Press Enter to close..."
+    [void][System.Console]::ReadLine()
 }
 
 function Ensure-Folder {
-    param([string]$Path)
+    param(
+        [string]$Path
+    )
 
     if (!(Test-Path -LiteralPath $Path)) {
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
@@ -137,7 +202,9 @@ function Ensure-Folder {
 }
 
 function Normalize-PathSafe {
-    param([string]$Path)
+    param(
+        [string]$Path
+    )
 
     try {
         return ([System.IO.Path]::GetFullPath($Path).TrimEnd('\'))
@@ -220,7 +287,9 @@ namespace CISCO_WindowTools
 }
 
 function Restore-AppWindow {
-    param([int]$ProcessId)
+    param(
+        [int]$ProcessId
+    )
 
     try {
         Add-WindowTools
@@ -309,7 +378,7 @@ function Remove-TempFile {
     }
 }
 
-function Invoke-DownloadFileWithProgress {
+function Invoke-DownloadFileWithGreenBar {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Url,
@@ -324,6 +393,8 @@ function Invoke-DownloadFileWithProgress {
     $OutputStream = $null
 
     try {
+        Show-GreenBar -Percent 0
+
         $Request = [System.Net.HttpWebRequest]::Create($Url)
         $Request.Method = "GET"
         $Request.AllowAutoRedirect = $true
@@ -346,6 +417,7 @@ function Invoke-DownloadFileWithProgress {
         $TotalBytes = [Int64]$Response.ContentLength
         $TotalRead = [Int64]0
         $Buffer = New-Object byte[] 65536
+        $UnknownPercent = 0
 
         while ($true) {
             $Read = $InputStream.Read($Buffer, 0, $Buffer.Length)
@@ -359,25 +431,20 @@ function Invoke-DownloadFileWithProgress {
 
             if ($TotalBytes -gt 0) {
                 $Percent = [int](($TotalRead * 100) / $TotalBytes)
-
-                if ($Percent -lt 0) {
-                    $Percent = 0
-                }
-
-                if ($Percent -gt 100) {
-                    $Percent = 100
-                }
-
-                $StatusText = "$(Format-Bytes $TotalRead) / $(Format-Bytes $TotalBytes)"
-                Write-Progress -Activity "Downloading CISCO GUI..." -Status $StatusText -PercentComplete $Percent
+                Show-GreenBar -Percent $Percent
             }
             else {
-                $StatusText = "$(Format-Bytes $TotalRead)"
-                Write-Progress -Activity "Downloading CISCO GUI..." -Status $StatusText -PercentComplete 0
+                $UnknownPercent += 1
+
+                if ($UnknownPercent -gt 95) {
+                    $UnknownPercent = 95
+                }
+
+                Show-GreenBar -Percent $UnknownPercent
             }
         }
 
-        Write-Progress -Activity "Downloading CISCO GUI..." -Completed
+        Show-GreenBar -Percent 100
 
         if (!(Test-Path -LiteralPath $Destination)) {
             throw "Download failed. File not created."
@@ -405,8 +472,6 @@ function Invoke-DownloadFileWithProgress {
         throw $Message
     }
     finally {
-        Write-Progress -Activity "Downloading CISCO GUI..." -Completed
-
         if ($null -ne $OutputStream) {
             try {
                 $OutputStream.Close()
@@ -437,12 +502,7 @@ function Download-Loader {
     Ensure-Folder -Path $InstallDir
     Remove-TempFile
 
-    Write-Info "Downloading Release Asset..."
-    Write-Info "From : $DownloadUrl"
-    Write-Info "To   : $OutFile"
-    Write-Host ""
-
-    Invoke-DownloadFileWithProgress -Url $DownloadUrl -Destination $TempFile
+    Invoke-DownloadFileWithGreenBar -Url $DownloadUrl -Destination $TempFile
 
     if (!(Test-Path -LiteralPath $TempFile)) {
         throw "Download failed. Temp file not found."
@@ -455,7 +515,7 @@ function Download-Loader {
         catch {
         }
 
-        throw "Downloaded file is not a valid Windows EXE. Check Release Asset name: $ReleaseAssetName"
+        throw "Downloaded file is not a valid Windows EXE."
     }
 
     if (Test-Path -LiteralPath $OutFile) {
@@ -463,51 +523,26 @@ function Download-Loader {
             Remove-Item -LiteralPath $OutFile -Force
         }
         catch {
-            throw "Cannot replace old file because GUI is still running or locked. Close CISCO GUI first, then run again."
+            throw "Cannot replace old file because GUI is still running or locked."
         }
     }
 
     Move-Item -LiteralPath $TempFile -Destination $OutFile -Force
 
-    Write-Ok "Download complete"
-    Write-Info "Saved to: $OutFile"
-    Write-Host ""
-}
-
-function Verify-Loader {
-    Write-Info "Checking downloaded file..."
-
     if (!(Test-Path -LiteralPath $OutFile)) {
-        throw "File not found: $OutFile"
+        throw "Final EXE file not found."
     }
 
     if (!(Test-WindowsExe -Path $OutFile)) {
-        throw "File is not a valid Windows EXE: $OutFile"
+        throw "Final file is not a valid Windows EXE."
     }
-
-    $Item = Get-Item -LiteralPath $OutFile
-
-    Write-Ok "Valid Windows EXE"
-    Write-Info "Size: $(Format-Bytes $Item.Length)"
-
-    Write-Info "SHA256:"
-    Get-FileHash -LiteralPath $OutFile -Algorithm SHA256 | Format-List
-
-    Write-Host ""
 }
 
 function Start-GuiOnce {
     if (Test-AnyRunningGui) {
-        Write-Warn "CISCO GUI is already running. Not opening duplicate."
         Restore-RunningGui
-        Write-Ok "Existing GUI restored"
-        Write-Host ""
         return
     }
-
-    Write-Info "Opening GUI..."
-    Write-Info "File: $OutFile"
-    Write-Host ""
 
     $Process = Start-Process `
         -FilePath $OutFile `
@@ -527,54 +562,32 @@ function Start-GuiOnce {
     catch {
         throw $_
     }
-
-    Write-Ok "GUI started successfully"
-    Write-Info "PID: $($Process.Id)"
-    Write-Host ""
 }
 
 try {
+    Initialize-Console
+
     $LauncherMutex = New-Object System.Threading.Mutex($true, $LauncherMutexName, [ref]$LauncherMutexCreated)
 
-    Show-Header
-
     if (-not $LauncherMutexCreated) {
-        Write-Warn "Loader is already running. Please wait."
-        Start-Sleep -Seconds 3
-        exit
+        if (Test-AnyRunningGui) {
+            Restore-RunningGui
+        }
+
+        Close-LoaderWindow
     }
 
     if (Test-AnyRunningGui) {
-        Write-Warn "CISCO GUI is already open."
         Restore-RunningGui
-        Write-Ok "No duplicate GUI opened"
-        Start-Sleep -Seconds 2
-        exit
+        Close-LoaderWindow
     }
 
     Download-Loader
-    Verify-Loader
     Start-GuiOnce
-
-    Write-Ok "Finished"
-    Start-Sleep -Seconds 2
+    Close-LoaderWindow
 }
 catch {
-    Write-Host ""
-    Write-Err $_.Exception.Message
-    Write-Host ""
-
-    Write-Warn "Checklist:"
-    Write-Host "1. ต้องลบโค้ดเก่าในไฟล์ P.ps ออกทั้งหมดก่อนวางโค้ดใหม่" -ForegroundColor Yellow
-    Write-Host "2. ถ้ายังขึ้น Count แปลว่า GitHub ยังเป็นโค้ดเก่า หรือยังไม่ได้ Commit changes" -ForegroundColor Yellow
-    Write-Host "3. Raw URL ต้องเป็น: https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps" -ForegroundColor Yellow
-    Write-Host "4. Release ต้องเป็น: https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0" -ForegroundColor Yellow
-    Write-Host "5. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe" -ForegroundColor Yellow
-    Write-Host "6. ถ้า GUI เปิดแล้วปิดทันที แปลว่าปัญหาอยู่ในตัว powershell.exe ไม่ใช่ตัวโหลด P.ps" -ForegroundColor Yellow
-    Write-Host ""
-
-    Write-Host "Press Enter to close..." -ForegroundColor DarkGray
-    [void][System.Console]::ReadLine()
+    Show-ErrorScreen -Message $_.Exception.Message
 }
 finally {
     if ($null -ne $LauncherMutex) {
@@ -588,4 +601,6 @@ finally {
         catch {
         }
     }
+
+    Restore-Console
 }
