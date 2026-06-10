@@ -2,12 +2,6 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "Continue"
 
 try {
-    Set-StrictMode -Version 2.0
-}
-catch {
-}
-
-try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     $OutputEncoding = [System.Text.Encoding]::UTF8
 }
@@ -15,13 +9,7 @@ catch {
 }
 
 try {
-    $Protocol = [Net.SecurityProtocolType]::Tls12
-
-    if ([Enum]::GetNames([Net.SecurityProtocolType]) -contains "Tls13") {
-        $Protocol = $Protocol -bor [Net.SecurityProtocolType]::Tls13
-    }
-
-    [Net.ServicePointManager]::SecurityProtocol = $Protocol
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 catch {
 }
@@ -29,20 +17,27 @@ catch {
 # ==========================================================
 # CISCO LOADER
 # Script  : https://github.com/Wxyuz/CISCO/blob/main/P.ps
+# Raw     : https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps
 # Release : https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0
 # Asset   : powershell.exe
 # ==========================================================
 
 $AppTitle = "CISCO LOADER"
+
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
+$BranchName = "main"
 $TagName = "v1.0.0"
-$ReleaseAssetName = "powershell.exe"
 
+$ScriptName = "P.ps"
+$ReleaseAssetName = "powershell.exe"
+$LocalExeName = "powershell.exe"
+
+$RepoUrl = "https://github.com/$RepoOwner/$RepoName"
+$ScriptPage = "https://github.com/$RepoOwner/$RepoName/blob/$BranchName/$ScriptName"
+$RawScriptUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$BranchName/$ScriptName"
 $ReleasePage = "https://github.com/$RepoOwner/$RepoName/releases/tag/$TagName"
 $DownloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$TagName/$ReleaseAssetName"
-
-$LocalExeName = "powershell.exe"
 
 function Get-SafeLocalAppData {
     if (![string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
@@ -61,7 +56,7 @@ $InstallDir = Join-Path $InstallRoot "CISCO"
 $OutFile = Join-Path $InstallDir $LocalExeName
 $TempFile = "$OutFile.download"
 
-$LauncherMutexName = "Global\Wxyuz_CISCO_Loader_v1_0_0"
+$LauncherMutexName = "Wxyuz_CISCO_Loader_v1_0_0"
 $LauncherMutex = $null
 $LauncherMutexCreated = $false
 
@@ -120,7 +115,9 @@ function Show-Header {
     Write-Host "                    CISCO LOADER                    " -ForegroundColor Yellow
     Write-Host "====================================================" -ForegroundColor Yellow
     Write-Host ""
-    Write-Info "Script  : https://github.com/$RepoOwner/$RepoName/blob/main/P.ps"
+
+    Write-Info "Script  : $ScriptPage"
+    Write-Info "Raw     : $RawScriptUrl"
     Write-Info "Release : $ReleasePage"
     Write-Info "Asset   : $ReleaseAssetName"
     Write-Info "URL     : $DownloadUrl"
@@ -157,6 +154,8 @@ function Test-WindowsExe {
         return $false
     }
 
+    $Stream = $null
+
     try {
         $Stream = [System.IO.File]::Open(
             $Path,
@@ -165,26 +164,30 @@ function Test-WindowsExe {
             [System.IO.FileShare]::ReadWrite
         )
 
-        try {
-            if ($Stream.Length -lt 2) {
-                return $false
-            }
-
-            $Buffer = New-Object byte[] 2
-            [void]$Stream.Read($Buffer, 0, 2)
-
-            if ($Buffer[0] -eq 0x4D -and $Buffer[1] -eq 0x5A) {
-                return $true
-            }
-
+        if ($Stream.Length -lt 2) {
             return $false
         }
-        finally {
-            $Stream.Close()
+
+        $Buffer = New-Object byte[] 2
+        [void]$Stream.Read($Buffer, 0, 2)
+
+        if ($Buffer[0] -eq 0x4D -and $Buffer[1] -eq 0x5A) {
+            return $true
         }
+
+        return $false
     }
     catch {
         return $false
+    }
+    finally {
+        if ($null -ne $Stream) {
+            try {
+                $Stream.Close()
+            }
+            catch {
+            }
+        }
     }
 }
 
@@ -235,7 +238,7 @@ function Restore-AppWindow {
 
 function Get-RunningGuiProcess {
     $TargetPath = Normalize-PathSafe $OutFile
-    $Result = @()
+    $Result = New-Object System.Collections.Generic.List[object]
 
     try {
         $Processes = Get-CimInstance Win32_Process -ErrorAction Stop
@@ -245,7 +248,7 @@ function Get-RunningGuiProcess {
                 $ProcessPath = Normalize-PathSafe $ProcessItem.ExecutablePath
 
                 if ($ProcessPath -ieq $TargetPath) {
-                    $Result += $ProcessItem
+                    [void]$Result.Add($ProcessItem)
                 }
             }
         }
@@ -259,7 +262,7 @@ function Get-RunningGuiProcess {
                     $ProcessPath = Normalize-PathSafe $ProcessItem.ExecutablePath
 
                     if ($ProcessPath -ieq $TargetPath) {
-                        $Result += $ProcessItem
+                        [void]$Result.Add($ProcessItem)
                     }
                 }
             }
@@ -268,7 +271,7 @@ function Get-RunningGuiProcess {
         }
     }
 
-    return @($Result)
+    return $Result.ToArray()
 }
 
 function Remove-TempFile {
@@ -281,7 +284,7 @@ function Remove-TempFile {
     }
 }
 
-function Download-FileWithProgress {
+function Invoke-DownloadFileWithProgress {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Url,
@@ -290,83 +293,117 @@ function Download-FileWithProgress {
         [string]$Destination
     )
 
-    $WebClient = New-Object System.Net.WebClient
-    $WebClient.Headers.Add("User-Agent", "Mozilla/5.0 CISCO-Loader")
-    $WebClient.Headers.Add("Accept", "*/*")
-
-    $Sync = [hashtable]::Synchronized(@{
-        Done = $false
-        Cancelled = $false
-        Error = $null
-        WaitHandle = New-Object System.Threading.ManualResetEvent($false)
-    })
-
-    $ProgressHandler = {
-        param($Sender, $EventArgs)
-
-        $Percent = [int]$EventArgs.ProgressPercentage
-
-        if ($Percent -lt 0) {
-            $Percent = 0
-        }
-
-        if ($Percent -gt 100) {
-            $Percent = 100
-        }
-
-        $Received = Format-Bytes $EventArgs.BytesReceived
-
-        if ($EventArgs.TotalBytesToReceive -gt 0) {
-            $Total = Format-Bytes $EventArgs.TotalBytesToReceive
-            $Status = "$Percent%  |  $Received / $Total"
-        }
-        else {
-            $Status = "$Received"
-        }
-
-        Write-Progress -Activity "Downloading CISCO GUI..." -Status $Status -PercentComplete $Percent
-    }
-
-    $CompletedHandler = {
-        param($Sender, $EventArgs)
-
-        if ($EventArgs.Error -ne $null) {
-            $Sync.Error = $EventArgs.Error
-        }
-
-        if ($EventArgs.Cancelled) {
-            $Sync.Cancelled = $true
-        }
-
-        $Sync.Done = $true
-        [void]$Sync.WaitHandle.Set()
-    }
+    $Request = $null
+    $Response = $null
+    $InputStream = $null
+    $OutputStream = $null
 
     try {
-        $WebClient.DownloadProgressChanged += $ProgressHandler
-        $WebClient.DownloadFileCompleted += $CompletedHandler
+        $Request = [System.Net.HttpWebRequest]::Create($Url)
+        $Request.Method = "GET"
+        $Request.AllowAutoRedirect = $true
+        $Request.MaximumAutomaticRedirections = 10
+        $Request.UserAgent = "Mozilla/5.0 CISCO-Loader"
+        $Request.Timeout = 30000
+        $Request.ReadWriteTimeout = 30000
+        $Request.KeepAlive = $false
 
-        $WebClient.DownloadFileAsync([Uri]$Url, $Destination)
+        $Response = $Request.GetResponse()
+        $InputStream = $Response.GetResponseStream()
 
-        while (-not $Sync.Done) {
-            Start-Sleep -Milliseconds 100
+        $OutputStream = [System.IO.File]::Open(
+            $Destination,
+            [System.IO.FileMode]::Create,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::None
+        )
+
+        $TotalBytes = [Int64]$Response.ContentLength
+        $TotalRead = [Int64]0
+        $Buffer = New-Object byte[] 65536
+
+        while ($true) {
+            $Read = $InputStream.Read($Buffer, 0, $Buffer.Length)
+
+            if ($Read -le 0) {
+                break
+            }
+
+            $OutputStream.Write($Buffer, 0, $Read)
+            $TotalRead += $Read
+
+            if ($TotalBytes -gt 0) {
+                $Percent = [int](($TotalRead * 100) / $TotalBytes)
+
+                if ($Percent -lt 0) {
+                    $Percent = 0
+                }
+
+                if ($Percent -gt 100) {
+                    $Percent = 100
+                }
+
+                $StatusText = "$(Format-Bytes $TotalRead) / $(Format-Bytes $TotalBytes)"
+                Write-Progress -Activity "Downloading CISCO GUI..." -Status $StatusText -PercentComplete $Percent
+            }
+            else {
+                $StatusText = "$(Format-Bytes $TotalRead)"
+                Write-Progress -Activity "Downloading CISCO GUI..." -Status $StatusText -PercentComplete 0
+            }
         }
 
         Write-Progress -Activity "Downloading CISCO GUI..." -Completed
 
-        if ($Sync.Cancelled) {
-            throw "Download cancelled."
+        if (!(Test-Path -LiteralPath $Destination)) {
+            throw "Download failed. File not created."
         }
 
-        if ($Sync.Error -ne $null) {
-            throw $Sync.Error
+        $DownloadedItem = Get-Item -LiteralPath $Destination
+
+        if ($DownloadedItem.Length -le 0) {
+            throw "Download failed. File size is 0 bytes."
         }
     }
-    finally {
+    catch [System.Net.WebException] {
+        $Message = $_.Exception.Message
+
         try {
-            $WebClient.Dispose()
+            if ($null -ne $_.Exception.Response) {
+                $StatusCode = [int]$_.Exception.Response.StatusCode
+                $StatusDescription = $_.Exception.Response.StatusDescription
+                $Message = "HTTP $StatusCode $StatusDescription - $Message"
+            }
         }
         catch {
+        }
+
+        throw $Message
+    }
+    finally {
+        Write-Progress -Activity "Downloading CISCO GUI..." -Completed
+
+        if ($null -ne $OutputStream) {
+            try {
+                $OutputStream.Close()
+            }
+            catch {
+            }
+        }
+
+        if ($null -ne $InputStream) {
+            try {
+                $InputStream.Close()
+            }
+            catch {
+            }
+        }
+
+        if ($null -ne $Response) {
+            try {
+                $Response.Close()
+            }
+            catch {
+            }
         }
     }
 }
@@ -380,19 +417,17 @@ function Download-Loader {
     Write-Info "To   : $OutFile"
     Write-Host ""
 
-    Download-FileWithProgress -Url $DownloadUrl -Destination $TempFile
+    Invoke-DownloadFileWithProgress -Url $DownloadUrl -Destination $TempFile
 
     if (!(Test-Path -LiteralPath $TempFile)) {
-        throw "Download failed. File not found after download."
+        throw "Download failed. Temp file not found."
     }
 
     if (!(Test-WindowsExe -Path $TempFile)) {
         try {
-            $BadContent = Get-Content -LiteralPath $TempFile -TotalCount 5 -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $TempFile -Force
         }
         catch {
-            $BadContent = $null
         }
 
         throw "Downloaded file is not a valid Windows EXE. Check Release Asset name: $ReleaseAssetName"
@@ -403,7 +438,7 @@ function Download-Loader {
             Remove-Item -LiteralPath $OutFile -Force
         }
         catch {
-            throw "Cannot replace old file because GUI is still running. Close CISCO first, then run again."
+            throw "Cannot replace old file because GUI is still running or locked. Close CISCO GUI first, then run again."
         }
     }
 
@@ -415,7 +450,7 @@ function Download-Loader {
 }
 
 function Verify-Loader {
-    Write-Info "Checking file..."
+    Write-Info "Checking downloaded file..."
 
     if (!(Test-Path -LiteralPath $OutFile)) {
         throw "File not found: $OutFile"
@@ -429,19 +464,26 @@ function Verify-Loader {
 
     Write-Ok "Valid Windows EXE"
     Write-Info "Size: $(Format-Bytes $Item.Length)"
+
     Write-Info "SHA256:"
     Get-FileHash -LiteralPath $OutFile -Algorithm SHA256 | Format-List
+
     Write-Host ""
 }
 
 function Start-GuiOnce {
-    $Running = Get-RunningGuiProcess
+    $Running = @(Get-RunningGuiProcess)
+    $RunningCount = $Running.Length
 
-    if ($Running.Count -gt 0) {
+    if ($RunningCount -gt 0) {
         Write-Warn "CISCO GUI is already running. Not opening duplicate."
 
         foreach ($Item in $Running) {
-            [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
+            try {
+                [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
+            }
+            catch {
+            }
         }
 
         Write-Ok "Existing GUI restored"
@@ -449,7 +491,9 @@ function Start-GuiOnce {
         return
     }
 
-    Write-Info "Opening GUI: $OutFile"
+    Write-Info "Opening GUI..."
+    Write-Info "File: $OutFile"
+    Write-Host ""
 
     $Process = Start-Process `
         -FilePath $OutFile `
@@ -457,7 +501,7 @@ function Start-GuiOnce {
         -WindowStyle Normal `
         -PassThru
 
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
 
     try {
         $Process.Refresh()
@@ -478,22 +522,26 @@ function Start-GuiOnce {
 try {
     $LauncherMutex = New-Object System.Threading.Mutex($true, $LauncherMutexName, [ref]$LauncherMutexCreated)
 
+    Show-Header
+
     if (-not $LauncherMutexCreated) {
-        Show-Header
         Write-Warn "Loader is already running. Please wait."
         Start-Sleep -Seconds 3
         exit
     }
 
-    Show-Header
+    $AlreadyRunning = @(Get-RunningGuiProcess)
+    $AlreadyRunningCount = $AlreadyRunning.Length
 
-    $AlreadyRunning = Get-RunningGuiProcess
-
-    if ($AlreadyRunning.Count -gt 0) {
+    if ($AlreadyRunningCount -gt 0) {
         Write-Warn "CISCO GUI is already open."
 
         foreach ($Item in $AlreadyRunning) {
-            [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
+            try {
+                [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
+            }
+            catch {
+            }
         }
 
         Write-Ok "No duplicate GUI opened"
@@ -514,20 +562,20 @@ catch {
     Write-Host ""
 
     Write-Warn "Checklist:"
-    Write-Host "1. ไฟล์ Script ต้องชื่อ P.ps ไม่ใช่ P.ps1" -ForegroundColor Yellow
+    Write-Host "1. ไฟล์ Script ใน GitHub ต้องชื่อ P.ps ไม่ใช่ P.ps1" -ForegroundColor Yellow
     Write-Host "2. Raw URL ต้องเป็น: https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps" -ForegroundColor Yellow
     Write-Host "3. Repo ต้องเป็น Public: https://github.com/Wxyuz/CISCO" -ForegroundColor Yellow
     Write-Host "4. Release ต้องเป็น: https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0" -ForegroundColor Yellow
-    Write-Host "5. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe แบบตัวเล็ก/ใหญ่ตรงกัน" -ForegroundColor Yellow
-    Write-Host "6. ถ้า GUI ของคุณล็อก HWID/KeyAuth เครื่องอื่นจะใช้ไม่ได้จนกว่าจะตั้งค่าฝั่ง KeyAuth ให้ถูกต้อง" -ForegroundColor Yellow
-    Write-Host "7. ถ้า Windows แจ้งเตือนไฟล์ unsigned ให้ publish/sign โปรแกรมให้ถูกต้อง ไม่แนะนำให้ปิดระบบป้องกัน Windows" -ForegroundColor Yellow
+    Write-Host "5. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe" -ForegroundColor Yellow
+    Write-Host "6. ถ้า GUI ล็อก HWID หรือ KeyAuth เครื่องอื่นจะใช้ไม่ได้จนกว่าจะตั้งค่าฝั่ง KeyAuth/โปรแกรม GUI ให้ถูกต้อง" -ForegroundColor Yellow
+    Write-Host "7. ถ้า GUI เปิดแล้วปิดทันที แปลว่าปัญหาอยู่ในตัว powershell.exe ไม่ใช่ตัวโหลด P.ps" -ForegroundColor Yellow
     Write-Host ""
 
     Write-Host "Press Enter to close..." -ForegroundColor DarkGray
     [void][System.Console]::ReadLine()
 }
 finally {
-    if ($LauncherMutex -ne $null) {
+    if ($null -ne $LauncherMutex) {
         try {
             if ($LauncherMutexCreated) {
                 $LauncherMutex.ReleaseMutex()
