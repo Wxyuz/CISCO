@@ -15,10 +15,10 @@ catch {
 }
 
 # ==========================================================
-# CISCO GREEN BAR LOADER
-# Script  : https://github.com/Wxyuz/CISCO/blob/main/P.ps
-# Raw     : https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps
-# Release : https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0
+# CISCO PURE GREEN BAR LOADER
+# Repo    : https://github.com/Wxyuz/CISCO
+# Script  : P.ps
+# Release : v1.0.0
 # Asset   : powershell.exe
 # ==========================================================
 
@@ -50,9 +50,9 @@ $InstallDir = Join-Path $InstallRoot "CISCO"
 $OutFile = Join-Path $InstallDir $LocalExeName
 $TempFile = "$OutFile.download"
 
-$LauncherMutexName = "Wxyuz_CISCO_Green_Bar_Loader_v1_0_0"
-$LauncherMutex = $null
-$LauncherMutexCreated = $false
+$LoaderMutexName = "Wxyuz_CISCO_Pure_Green_Loader_v1_0_0"
+$LoaderMutex = $null
+$LoaderMutexCreated = $false
 
 function Initialize-Console {
     try {
@@ -78,6 +78,15 @@ function Initialize-Console {
     }
     catch {
     }
+
+    try {
+        $RawUi = $Host.UI.RawUI
+        $Size = $RawUi.BufferSize
+        $Size.Width = 90
+        $RawUi.BufferSize = $Size
+    }
+    catch {
+    }
 }
 
 function Restore-Console {
@@ -95,7 +104,11 @@ function Restore-Console {
 }
 
 function Close-LoaderWindow {
-    Restore-Console
+    try {
+        Restore-Console
+    }
+    catch {
+    }
 
     try {
         Clear-Host
@@ -119,7 +132,7 @@ function Show-GreenBar {
         $Percent = 100
     }
 
-    $BarWidth = 70
+    $BarWidth = 72
     $Filled = [int](($Percent * $BarWidth) / 100)
 
     if ($Filled -lt 0) {
@@ -150,18 +163,22 @@ function Show-GreenBar {
     }
 
     try {
-        [Console]::Write($Bar)
+        [Console]::Write($Bar.PadRight(90))
     }
     catch {
     }
 }
 
-function Show-ErrorScreen {
+function Show-ErrorPopup {
     param(
         [string]$Message
     )
 
-    Restore-Console
+    try {
+        Restore-Console
+    }
+    catch {
+    }
 
     try {
         Clear-Host
@@ -170,25 +187,23 @@ function Show-ErrorScreen {
     }
 
     try {
-        [Console]::ForegroundColor = [ConsoleColor]::Red
+        Add-Type -AssemblyName System.Windows.Forms
+        [void][System.Windows.Forms.MessageBox]::Show(
+            $Message,
+            "CISCO LOADER ERROR",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        )
     }
     catch {
+        Write-Host ""
+        Write-Host "ERROR"
+        Write-Host ""
+        Write-Host $Message
+        Write-Host ""
+        Write-Host "Press Enter to close..."
+        [void][System.Console]::ReadLine()
     }
-
-    Write-Host ""
-    Write-Host "ERROR"
-    Write-Host ""
-    Write-Host $Message
-    Write-Host ""
-
-    try {
-        [Console]::ResetColor()
-    }
-    catch {
-    }
-
-    Write-Host "Press Enter to close..."
-    [void][System.Console]::ReadLine()
 }
 
 function Ensure-Folder {
@@ -544,13 +559,19 @@ function Start-GuiOnce {
         return
     }
 
-    $Process = Start-Process `
-        -FilePath $OutFile `
-        -WorkingDirectory $InstallDir `
-        -WindowStyle Normal `
-        -PassThru
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $OutFile
+    $StartInfo.WorkingDirectory = $InstallDir
+    $StartInfo.UseShellExecute = $true
+    $StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal
+
+    $Process = [System.Diagnostics.Process]::Start($StartInfo)
 
     Start-Sleep -Seconds 2
+
+    if ($null -eq $Process) {
+        throw "GUI process failed to start."
+    }
 
     try {
         $Process.Refresh()
@@ -567,9 +588,9 @@ function Start-GuiOnce {
 try {
     Initialize-Console
 
-    $LauncherMutex = New-Object System.Threading.Mutex($true, $LauncherMutexName, [ref]$LauncherMutexCreated)
+    $LoaderMutex = New-Object System.Threading.Mutex($true, $LoaderMutexName, [ref]$LoaderMutexCreated)
 
-    if (-not $LauncherMutexCreated) {
+    if (-not $LoaderMutexCreated) {
         if (Test-AnyRunningGui) {
             Restore-RunningGui
         }
@@ -587,16 +608,16 @@ try {
     Close-LoaderWindow
 }
 catch {
-    Show-ErrorScreen -Message $_.Exception.Message
+    Show-ErrorPopup -Message $_.Exception.Message
 }
 finally {
-    if ($null -ne $LauncherMutex) {
+    if ($null -ne $LoaderMutex) {
         try {
-            if ($LauncherMutexCreated) {
-                $LauncherMutex.ReleaseMutex()
+            if ($LoaderMutexCreated) {
+                $LoaderMutex.ReleaseMutex()
             }
 
-            $LauncherMutex.Dispose()
+            $LoaderMutex.Dispose()
         }
         catch {
         }
