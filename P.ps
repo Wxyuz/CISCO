@@ -15,7 +15,8 @@ catch {
 }
 
 # ==========================================================
-# CISCO LOADER
+# CISCO LOADER FIXED VERSION
+# Version : 2026-06-10-FIX-NO-COUNT
 # Script  : https://github.com/Wxyuz/CISCO/blob/main/P.ps
 # Raw     : https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps
 # Release : https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0
@@ -23,6 +24,7 @@ catch {
 # ==========================================================
 
 $AppTitle = "CISCO LOADER"
+$ScriptVersion = "2026-06-10-FIX-NO-COUNT"
 
 $RepoOwner = "Wxyuz"
 $RepoName = "CISCO"
@@ -56,7 +58,7 @@ $InstallDir = Join-Path $InstallRoot "CISCO"
 $OutFile = Join-Path $InstallDir $LocalExeName
 $TempFile = "$OutFile.download"
 
-$LauncherMutexName = "Wxyuz_CISCO_Loader_v1_0_0"
+$LauncherMutexName = "Wxyuz_CISCO_Loader_v1_0_0_NoCount_Fix"
 $LauncherMutex = $null
 $LauncherMutexCreated = $false
 
@@ -83,16 +85,16 @@ function Write-Err {
 function Format-Bytes {
     param([Int64]$Bytes)
 
-    if ($Bytes -ge 1GB) {
-        return ("{0:N2} GB" -f ($Bytes / 1GB))
+    if ($Bytes -ge 1073741824) {
+        return ("{0:N2} GB" -f ($Bytes / 1073741824))
     }
 
-    if ($Bytes -ge 1MB) {
-        return ("{0:N2} MB" -f ($Bytes / 1MB))
+    if ($Bytes -ge 1048576) {
+        return ("{0:N2} MB" -f ($Bytes / 1048576))
     }
 
-    if ($Bytes -ge 1KB) {
-        return ("{0:N2} KB" -f ($Bytes / 1KB))
+    if ($Bytes -ge 1024) {
+        return ("{0:N2} KB" -f ($Bytes / 1024))
     }
 
     return "$Bytes Bytes"
@@ -116,6 +118,7 @@ function Show-Header {
     Write-Host "====================================================" -ForegroundColor Yellow
     Write-Host ""
 
+    Write-Info "Version : $ScriptVersion"
     Write-Info "Script  : $ScriptPage"
     Write-Info "Raw     : $RawScriptUrl"
     Write-Info "Release : $ReleasePage"
@@ -236,9 +239,9 @@ function Restore-AppWindow {
     return $false
 }
 
-function Get-RunningGuiProcess {
+function Get-RunningGuiProcesses {
     $TargetPath = Normalize-PathSafe $OutFile
-    $Result = New-Object System.Collections.Generic.List[object]
+    $Result = New-Object System.Collections.ArrayList
 
     try {
         $Processes = Get-CimInstance Win32_Process -ErrorAction Stop
@@ -271,7 +274,29 @@ function Get-RunningGuiProcess {
         }
     }
 
-    return $Result.ToArray()
+    foreach ($Item in $Result) {
+        Write-Output $Item
+    }
+}
+
+function Test-AnyRunningGui {
+    $Found = $false
+
+    foreach ($Item in Get-RunningGuiProcesses) {
+        $Found = $true
+    }
+
+    return $Found
+}
+
+function Restore-RunningGui {
+    foreach ($Item in Get-RunningGuiProcesses) {
+        try {
+            [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
+        }
+        catch {
+        }
+    }
 }
 
 function Remove-TempFile {
@@ -304,8 +329,8 @@ function Invoke-DownloadFileWithProgress {
         $Request.AllowAutoRedirect = $true
         $Request.MaximumAutomaticRedirections = 10
         $Request.UserAgent = "Mozilla/5.0 CISCO-Loader"
-        $Request.Timeout = 30000
-        $Request.ReadWriteTimeout = 30000
+        $Request.Timeout = 60000
+        $Request.ReadWriteTimeout = 60000
         $Request.KeepAlive = $false
 
         $Response = $Request.GetResponse()
@@ -472,20 +497,9 @@ function Verify-Loader {
 }
 
 function Start-GuiOnce {
-    $Running = @(Get-RunningGuiProcess)
-    $RunningCount = $Running.Length
-
-    if ($RunningCount -gt 0) {
+    if (Test-AnyRunningGui) {
         Write-Warn "CISCO GUI is already running. Not opening duplicate."
-
-        foreach ($Item in $Running) {
-            try {
-                [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
-            }
-            catch {
-            }
-        }
-
+        Restore-RunningGui
         Write-Ok "Existing GUI restored"
         Write-Host ""
         return
@@ -530,20 +544,9 @@ try {
         exit
     }
 
-    $AlreadyRunning = @(Get-RunningGuiProcess)
-    $AlreadyRunningCount = $AlreadyRunning.Length
-
-    if ($AlreadyRunningCount -gt 0) {
+    if (Test-AnyRunningGui) {
         Write-Warn "CISCO GUI is already open."
-
-        foreach ($Item in $AlreadyRunning) {
-            try {
-                [void](Restore-AppWindow -ProcessId ([int]$Item.ProcessId))
-            }
-            catch {
-            }
-        }
-
+        Restore-RunningGui
         Write-Ok "No duplicate GUI opened"
         Start-Sleep -Seconds 2
         exit
@@ -562,13 +565,12 @@ catch {
     Write-Host ""
 
     Write-Warn "Checklist:"
-    Write-Host "1. ไฟล์ Script ใน GitHub ต้องชื่อ P.ps ไม่ใช่ P.ps1" -ForegroundColor Yellow
-    Write-Host "2. Raw URL ต้องเป็น: https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps" -ForegroundColor Yellow
-    Write-Host "3. Repo ต้องเป็น Public: https://github.com/Wxyuz/CISCO" -ForegroundColor Yellow
+    Write-Host "1. ต้องลบโค้ดเก่าในไฟล์ P.ps ออกทั้งหมดก่อนวางโค้ดใหม่" -ForegroundColor Yellow
+    Write-Host "2. ถ้ายังขึ้น Count แปลว่า GitHub ยังเป็นโค้ดเก่า หรือยังไม่ได้ Commit changes" -ForegroundColor Yellow
+    Write-Host "3. Raw URL ต้องเป็น: https://raw.githubusercontent.com/Wxyuz/CISCO/main/P.ps" -ForegroundColor Yellow
     Write-Host "4. Release ต้องเป็น: https://github.com/Wxyuz/CISCO/releases/tag/v1.0.0" -ForegroundColor Yellow
     Write-Host "5. ใน Release Assets ต้องมีไฟล์ชื่อ powershell.exe" -ForegroundColor Yellow
-    Write-Host "6. ถ้า GUI ล็อก HWID หรือ KeyAuth เครื่องอื่นจะใช้ไม่ได้จนกว่าจะตั้งค่าฝั่ง KeyAuth/โปรแกรม GUI ให้ถูกต้อง" -ForegroundColor Yellow
-    Write-Host "7. ถ้า GUI เปิดแล้วปิดทันที แปลว่าปัญหาอยู่ในตัว powershell.exe ไม่ใช่ตัวโหลด P.ps" -ForegroundColor Yellow
+    Write-Host "6. ถ้า GUI เปิดแล้วปิดทันที แปลว่าปัญหาอยู่ในตัว powershell.exe ไม่ใช่ตัวโหลด P.ps" -ForegroundColor Yellow
     Write-Host ""
 
     Write-Host "Press Enter to close..." -ForegroundColor DarkGray
